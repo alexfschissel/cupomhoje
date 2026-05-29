@@ -40,11 +40,14 @@ function format(c: Coupon): string {
   const desc  = c.description.trim();
   const lines: string[] = [];
 
-  // Detecta produto com preço real (ignora "De R$0 por R$0")
+  // Detecta "De R$ORIG por R$SALE — Nome" (desconto real, orig > sale)
   const priceMatch = desc.match(/^De R\$(\S+) por R\$(\S+) — (.+)$/i);
   const origNum = priceMatch ? parseFloat(priceMatch[1].replace(",", ".")) : 0;
   const saleNum = priceMatch ? parseFloat(priceMatch[2].replace(",", ".")) : 0;
-  const hasValidPrice = origNum > 0 && saleNum > 0;
+  const hasDiscount = origNum > 0 && saleNum > 0 && origNum > saleNum; // preços DIFERENTES
+
+  // Detecta "R$PRICE — Nome" (preço atual sem comparação — LG BR)
+  const priceOnlyMatch = !priceMatch ? desc.match(/^R\$(\S+) — (.+)$/i) : null;
 
   // Label de desconto
   const discountLabel =
@@ -54,7 +57,7 @@ function format(c: Coupon): string {
       ? `R$${c.discount_value} de desconto`
       : c.discount_type === "free_shipping"
       ? "Frete Grátis"
-      : hasValidPrice
+      : hasDiscount
       ? `${Math.round(((origNum - saleNum) / origNum) * 100)}% OFF`
       : "Promoção especial";
 
@@ -72,19 +75,24 @@ function format(c: Coupon): string {
   lines.push(SEP);
   lines.push(`🏷 ${discountLabel}`);
 
-  if (hasValidPrice && priceMatch) {
+  if (hasDiscount && priceMatch) {
+    // Tem desconto real — mostra comparação de preços
     lines.push(`💲 De R$${priceMatch[1]} por R$${priceMatch[2]}`);
     lines.push(`🛒 ${priceMatch[3].slice(0, 100)}`);
   } else if (priceMatch) {
-    // Tem prefixo de preço mas valores inválidos — mostra só o nome
+    // Preços iguais — mostra só o nome, sem comparação
     lines.push(`🛒 ${priceMatch[3].slice(0, 100)}`);
+  } else if (priceOnlyMatch) {
+    // Só preço atual (LG BR sem rrp) — mostra preço e nome
+    lines.push(`💲 R$${priceOnlyMatch[1]}`);
+    lines.push(`🛒 ${priceOnlyMatch[2].slice(0, 100)}`);
   } else {
     lines.push(`🛒 ${desc.slice(0, 100)}`);
   }
 
   if (c.discount_value && c.discount_value > 0)
     lines.push(`💰 ${Math.round(c.discount_value)}% de desconto`);
-  else if (hasValidPrice && origNum > saleNum)
+  else if (hasDiscount)
     lines.push(`💰 ${Math.round(((origNum - saleNum) / origNum) * 100)}% de desconto`);
 
   if (c.code)
