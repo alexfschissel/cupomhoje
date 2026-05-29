@@ -1,3 +1,28 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@keyframes float-phone {
+  0%, 100% { transform: translateY(0px) rotate(-4deg); }
+  50%       { transform: translateY(-14px) rotate(-4deg); }
+}
+@keyframes notif-slide {
+  0%        { transform: translateY(-110%); opacity: 0; }
+  12%       { transform: translateY(0);     opacity: 1; }
+  75%       { transform: translateY(0);     opacity: 1; }
+  88%,100%  { transform: translateY(-110%); opacity: 0; }
+}
+@keyframes notif2-slide {
+  0%,40%    { transform: translateY(-110%); opacity: 0; }
+  52%       { transform: translateY(0);     opacity: 1; }
+  90%       { transform: translateY(0);     opacity: 1; }
+  100%      { transform: translateY(-110%); opacity: 0; }
+}
+@keyframes glow-pulse {
+  0%,100% { box-shadow: 0 0 30px rgba(34,158,217,0.15); }
+  50%     { box-shadow: 0 0 60px rgba(34,158,217,0.35); }
+}
+.animate-float-phone  { animation: float-phone  5s ease-in-out infinite; }
+.animate-notif        { animation: notif-slide  5s ease-in-out infinite; }
+.animate-notif2       { animation: notif2-slide 5s ease-in-out 2.5s infinite; }
+.animate-glow         { animation: glow-pulse   3s ease-in-out infinite; }
