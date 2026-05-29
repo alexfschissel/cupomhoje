@@ -35,44 +35,81 @@ function safeUrl(url: string) {
   return url.replace(/&/g, "&amp;");
 }
 
-// ── Formata mensagem — padrão clean premium ───────────────────────────────────
+// ── Formata mensagem — template profissional ─────────────────────────────────
 function format(c: Coupon): string {
   const store = c.store_name;
   const desc  = c.description.trim();
   const lines: string[] = [];
 
-  // Detecta "De R$ORIG por R$SALE — Nome"
+  // Detecta "De R$ORIG por R$SALE — Nome" ou "R$X — Nome"
   const priceMatch = desc.match(/^De R\$(\S+) por R\$(\S+) — (.+)$/i);
-  const origNum = priceMatch ? parseFloat(priceMatch[1].replace(",", ".")) : 0;
-  const saleNum = priceMatch ? parseFloat(priceMatch[2].replace(",", ".")) : 0;
+  const simpleMatch = desc.match(/^R\$(\S+) — (.+)$/i);
 
-  const productName = priceMatch ? priceMatch[3].slice(0, 80) : desc.slice(0, 80);
+  const origNum = priceMatch ? parseFloat(priceMatch[1].replace(",", ".")) : 0;
+  const saleNum = priceMatch
+    ? parseFloat(priceMatch[2].replace(",", "."))
+    : simpleMatch
+    ? parseFloat(simpleMatch[1].replace(",", "."))
+    : 0;
+
+  const productName = priceMatch
+    ? priceMatch[3]
+    : simpleMatch
+    ? simpleMatch[2]
+    : desc;
+
+  // Capitaliza e limpa o nome
+  const cleanName = productName
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 90);
+
   const discountPct = c.discount_value && c.discount_value > 0 ? Math.round(c.discount_value) : 0;
 
-  // CTA baseado na loja
-  const cta = `COMPRAR NA ${store.toUpperCase()}`;
-
-  // Layout limpo e profissional (padrão da imagem)
-  if (discountPct > 0) {
+  // ═══ TÍTULO COM EMOJI ATRATIVO ═══
+  // Header chamativo baseado no desconto
+  if (discountPct >= 50) {
+    lines.push(`🔥 <b>MEGA OFERTA — ${discountPct}% OFF</b> 🔥`);
+  } else if (discountPct >= 30) {
+    lines.push(`⚡ <b>${discountPct}% DE DESCONTO</b> ⚡`);
+  } else if (discountPct > 0) {
     lines.push(`🏷 <b>${discountPct}% OFF</b>`);
-  }
-
-  if (origNum > 0 && saleNum > 0 && origNum > saleNum) {
-    lines.push(`💲 De R$${Math.round(origNum)} Por R$${Math.round(saleNum)}`);
-  }
-
-  lines.push(`🛒 ${productName}`);
-
-  if (c.code) {
-    lines.push(`☝️ Use o Cupom: <code>${c.code}</code>`);
   } else {
-    lines.push(`✅ Desconto automático`);
+    lines.push(`🛍 <b>OFERTA ESPECIAL</b>`);
   }
 
   lines.push("");
-  lines.push(`🛒 <a href="${safeUrl(c.affiliate_url)}">${cta}</a>`);
+
+  // ═══ NOME DO PRODUTO ═══
+  lines.push(`📦 <b>${cleanName}</b>`);
+  lines.push("");
+
+  // ═══ PREÇO ═══
+  if (origNum > 0 && saleNum > 0 && origNum > saleNum) {
+    lines.push(`💸 <s>De R$ ${origNum.toFixed(2).replace(".", ",")}</s>`);
+    lines.push(`💰 <b>Por R$ ${saleNum.toFixed(2).replace(".", ",")}</b>`);
+  } else if (saleNum > 0) {
+    lines.push(`💰 <b>R$ ${saleNum.toFixed(2).replace(".", ",")}</b>`);
+  }
+
+  lines.push("");
+
+  // ═══ CUPOM / DESCONTO AUTOMÁTICO ═══
+  if (c.code) {
+    lines.push(`🎟 Cupom: <code>${c.code}</code>`);
+  } else {
+    lines.push(`✅ <i>Desconto aplicado automaticamente</i>`);
+  }
+
+  lines.push("");
+
+  // ═══ CTA ═══
+  lines.push(`🛒 <a href="${safeUrl(c.affiliate_url)}"><b>COMPRAR AGORA →</b></a>`);
+  lines.push("");
+
+  // ═══ RODAPÉ ═══
   lines.push(SEP);
-  lines.push("📲 @cupomhojeoficial");
+  lines.push(`🏪 <i>${store}</i> | 📲 @cupomhojeoficial`);
 
   return lines.join("\n");
 }
@@ -132,16 +169,35 @@ export async function GET(req: NextRequest) {
     sixHoursAgo.setHours(sixHoursAgo.getHours() - 6);
     const smallStores = ["Wise", "Nubank", "Kast", "Natura BR", "E-book Bitcoin"];
 
+    // Filtro de produtos LIXO (livros, adesivos, etc) — proteção extra
+    const LIXO_WORDS = [
+      "livro", "livros", "ebook", "kindle", "literatura",
+      "adesivo", "etiqueta", "etiquetas",
+      "cupom de desconto", "cupons de desconto",
+      "cartão de desconto", "cartões de desconto",
+      "guia jurídico", "guia juridico",
+      "fio de chenille",
+      "edition", "portuguese edition",
+    ];
+
     if (data && data.length > 0) {
-      // Remove produtos de lojas pequenas que foram postados há menos de 6h
-      const filtered = (data as Coupon[]).filter(c => {
-        if (!smallStores.some(s => c.store_name.includes(s))) return true; // Lojas grandes: ok
-        if (!c.last_posted_at) return true; // Nunca foi postado: ok
-        const lastPost = new Date(c.last_posted_at);
-        return lastPost < sixHoursAgo; // Postado há mais de 6h: ok
+      // 1. Remove produtos LIXO
+      let filtered = (data as Coupon[]).filter(c => {
+        const desc = c.description.toLowerCase();
+        return !LIXO_WORDS.some(w => desc.includes(w));
       });
+
+      // 2. Remove produtos de lojas pequenas postados há menos de 6h
+      filtered = filtered.filter(c => {
+        if (!smallStores.some(s => c.store_name.includes(s))) return true;
+        if (!c.last_posted_at) return true;
+        const lastPost = new Date(c.last_posted_at);
+        return lastPost < sixHoursAgo;
+      });
+
       // Sobrescreve data com a lista filtrada
-      Object.assign(data, filtered);
+      data.length = 0;
+      data.push(...filtered);
     }
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

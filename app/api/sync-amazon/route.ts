@@ -70,37 +70,56 @@ function parsePrice(raw: unknown): number | null {
   return n > 0 ? n : null;
 }
 
-// Filtra produtos por categoria — remove Livros, eBooks, Adesivos de desconto, etc
+// Filtra produtos LIXO — remove Livros, eBooks, Adesivos, qualquer coisa com "desconto" no título
 function isValidProductCategory(breadCrumbs?: string, title?: string): boolean {
-  if (!breadCrumbs || !title) return true; // sem categoria = aceita
+  const bc = (breadCrumbs ?? "").toLowerCase();
+  const t = (title ?? "").toLowerCase();
 
-  const bc = breadCrumbs.toLowerCase();
-  const t = title.toLowerCase();
-
-  // BLOQUEAR: Livros, eBooks, Adesivos de desconto (não são cupons)
+  // BLOQUEAR por categoria (breadcrumb)
   const blockedCategories = [
-    "livros",
-    "ebook",
-    "literatura",
-    "ficcção",
-    "adesivos",
-    "etiqueta",
-    "desconto",  // "1000 adesivos com 60% de desconto"
-    "liquidação",
-    "cupom",
-    "cartões", // "Cartões de desconto de fidelidade"
+    "livros", "livro",
+    "ebook", "kindle", "loja kindle",
+    "literatura", "ficção", "ficcão",
+    "adesivos", "etiqueta", "etiquetas",
+    "liquidação", "liquidacao",
+    "cupom", "cupons",
+    "cartões", "cartoes",
+    "papelaria", "papelaria e escritório",
+    "material de escritório",
+    "sinalizações",
+    "internacionais", // Livros Internacionais
   ];
 
-  // Se a categoria contém palavras bloqueadas, rejeita
-  if (blockedCategories.some(word => bc.includes(word))) {
-    return false;
-  }
+  if (blockedCategories.some(word => bc.includes(word))) return false;
 
-  // Bloqueador adicional por título (ex: "adesivo com desconto")
-  if (blockedCategories.some(word => t.includes(word))) {
-    return false;
-  }
+  // BLOQUEAR por palavras no título (produtos sobre desconto, não COM desconto)
+  const blockedTitleWords = [
+    "desconto",      // "livros sobre desconto"
+    "descontos",
+    "adesivo",
+    "etiqueta",
+    "etiquetas",
+    "cupom",
+    "cupons",
+    "cartão de desconto",
+    "fio de chenille",
+    "1000 adesivo",
+    "500 adesivo",
+    "tag de preço",
+    "placa de",
+    "guia jurídico",
+    "guia juridico",
+    "guia completo",
+    "guia prático",
+    "guia pratico",
+    "edition",
+    "portuguese edition",
+    "english edition",
+  ];
 
+  if (blockedTitleWords.some(word => t.includes(word))) return false;
+
+  // Aceita só produtos com preço > 0 (filtro extra na função pai)
   return true;
 }
 
@@ -114,6 +133,10 @@ function processProduct(p: ApifyProduct, storeId: string) {
   if (!isValidProductCategory(p.breadCrumbs, p.title)) {
     return null;
   }
+
+  // EXIGE PREÇO VÁLIDO — produtos sem preço são lixo
+  const saleCheck = parsePrice(p.price);
+  if (!saleCheck || saleCheck < 5) return null; // sem preço ou preço < R$5 é suspeito
 
   const saleNum = parsePrice(p.price);
   const origNum = parsePrice(p.listPrice);
