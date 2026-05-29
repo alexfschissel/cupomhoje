@@ -151,23 +151,27 @@ export async function GET(req: NextRequest) {
     const supabase = db();
 
     // Busca produtos com desconto real
-    // Lojas grandes (AliExpress, Amazon, ML): pode repetir após 2h
-    // Lojas pequenas (Wise, Nubank): aguarda 6h
-    const twoHoursAgo = new Date();
-    twoHoursAgo.setHours(twoHoursAgo.getHours() - 2);
+    // Lojas grandes (AliExpress, Amazon): pode repetir após 4h
+    // Lojas pequenas (Wise, Nubank, Ledger, Shopclub): aguarda 12h
+    const fourHoursAgo = new Date();
+    fourHoursAgo.setHours(fourHoursAgo.getHours() - 4);
 
     const { data, error } = await supabase
       .from("coupons_with_store")
       .select("id, code, description, discount_type, discount_value, affiliate_url, expires_at, store_name, image_url, last_posted_at")
       .eq("is_active", true)
       .gt("discount_value", 0) // Só produtos com desconto > 0
-      .or(`last_posted_at.is.null,last_posted_at.lt.${twoHoursAgo.toISOString()}`) // Não postado ou postado há mais de 2h
+      .or(`last_posted_at.is.null,last_posted_at.lt.${fourHoursAgo.toISOString()}`) // Não postado ou postado há mais de 4h
       .limit(300);
 
-    // Filtra ainda mais lojas pequenas (6h mínimo)
-    const sixHoursAgo = new Date();
-    sixHoursAgo.setHours(sixHoursAgo.getHours() - 6);
-    const smallStores = ["Wise", "Nubank", "Kast", "Natura BR", "E-book Bitcoin"];
+    // Filtra ainda mais lojas pequenas (12h mínimo)
+    const twelveHoursAgo = new Date();
+    twelveHoursAgo.setHours(twelveHoursAgo.getHours() - 12);
+    const smallStores = [
+      "Wise", "Nubank", "Kast", "Natura BR", "E-book Bitcoin",
+      "Ledger", "Shopclub", "ShopClub", "Booking", "Hostinger",
+      "Binance", "Bybit", "Trezor"
+    ];
 
     // Filtro de produtos LIXO (livros, adesivos, etc) — proteção extra
     const LIXO_WORDS = [
@@ -187,12 +191,12 @@ export async function GET(req: NextRequest) {
         return !LIXO_WORDS.some(w => desc.includes(w));
       });
 
-      // 2. Remove produtos de lojas pequenas postados há menos de 6h
+      // 2. Remove produtos de lojas pequenas postados há menos de 12h
       filtered = filtered.filter(c => {
         if (!smallStores.some(s => c.store_name.includes(s))) return true;
         if (!c.last_posted_at) return true;
         const lastPost = new Date(c.last_posted_at);
-        return lastPost < sixHoursAgo;
+        return lastPost < twelveHoursAgo;
       });
 
       // Sobrescreve data com a lista filtrada
@@ -250,18 +254,47 @@ export async function GET(req: NextRequest) {
       round++;
     }
 
+    // Deduplicação extra por URL — evita 2 mensagens iguais no mesmo batch
+    const seenUrls = new Set<string>();
+    const dedupedShuffled: Coupon[] = [];
+    for (const c of shuffled) {
+      if (seenUrls.has(c.affiliate_url)) continue;
+      seenUrls.add(c.affiliate_url);
+      dedupedShuffled.push(c);
+    }
+    shuffled.length = 0;
+    shuffled.push(...dedupedShuffled);
+
     const results = [];
     const now = new Date().toISOString();
 
     for (const coupon of shuffled) {
       try {
+        // ⚠️ RESERVA O PRODUTO ANTES DE ENVIAR — evita race condition
+        // Se outro cron já reservou (last_posted_at recente), pula
+        const reserveThreshold = new Date();
+        reserveThreshold.setMinutes(reserveThreshold.getMinutes() - 30); // 30 min de proteção
+
+        const { data: updated } = await supabase
+          .from("coupons")
+          .update({ last_posted_at: now })
+          .eq("id", coupon.id)
+          .or(`last_posted_at.is.null,last_posted_at.lt.${reserveThreshold.toISOString()}`)
+          .select("id");
+
+        // Se update não pegou nada, outro processo já reservou
+        if (!updated || updated.length === 0) {
+          results.push({ id: coupon.id, store: coupon.store_name, ok: false, error: "Já enviado por outro processo" });
+          continue;
+        }
+
         const text   = format(coupon);
         let msgId: number | undefined;
 
         // Sempre usa sendMessage — Telegram puxa preview automático do link
         msgId = await sendMessage(text, TOKEN, CHAT_ID);
 
-        // Atualiza último post do produto (para não repetir em 2h)
+        // Já atualizou last_posted_at acima (na reserva)
         await supabase
           .from("coupons")
           .update({ last_posted_at: now })
