@@ -88,13 +88,14 @@ function PhoneMockup() {
             {/* Notificação 1 */}
             <div className="animate-notif absolute left-3 right-3 top-2 bg-[#2C2C2E]/95 backdrop-blur rounded-2xl p-3 shadow-xl border border-white/[0.08]">
               <div className="flex items-start gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-[#FF7340] to-[#D93000] rounded-lg flex items-center justify-center text-sm shrink-0">🏷️</div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="CupomHoje" className="w-8 h-8 rounded-lg object-cover shrink-0" />
                 <div className="min-w-0">
                   <div className="flex justify-between items-center mb-0.5">
                     <p className="text-white text-[11px] font-semibold">CupomHoje</p>
                     <p className="text-white/30 text-[10px]">agora</p>
                   </div>
-                  <p className="text-[#FF5A1F] text-[10px] font-bold">🏷 ALIEXPRESS • 56% OFF</p>
+                  <p className="text-[#FF5A1F] text-[10px] font-bold">🏷 ALIEXPRESS · 56% OFF</p>
                   <p className="text-white/70 text-[10px] leading-tight mt-0.5">Fone Bluetooth TWS Pro<br/>De R$110 por R$48 ✅</p>
                 </div>
               </div>
@@ -103,13 +104,14 @@ function PhoneMockup() {
             {/* Notificação 2 */}
             <div className="animate-notif2 absolute left-3 right-3 top-2 bg-[#2C2C2E]/95 backdrop-blur rounded-2xl p-3 shadow-xl border border-white/[0.08]">
               <div className="flex items-start gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-[#FF7340] to-[#D93000] rounded-lg flex items-center justify-center text-sm shrink-0">🏷️</div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="CupomHoje" className="w-8 h-8 rounded-lg object-cover shrink-0" />
                 <div className="min-w-0">
                   <div className="flex justify-between items-center mb-0.5">
                     <p className="text-white text-[11px] font-semibold">CupomHoje</p>
                     <p className="text-white/30 text-[10px]">agora</p>
                   </div>
-                  <p className="text-[#FF5A1F] text-[10px] font-bold">🏷 LG BR • 37% OFF</p>
+                  <p className="text-[#FF5A1F] text-[10px] font-bold">🏷 LG BR · 37% OFF</p>
                   <p className="text-white/70 text-[10px] leading-tight mt-0.5">Monitor UltraGear 27" OLED<br/>De R$4699 por R$2999 ✅</p>
                 </div>
               </div>
@@ -118,7 +120,8 @@ function PhoneMockup() {
             {/* Tela do Telegram (fundo) */}
             <div className="mt-20 bg-[#17212B] rounded-xl p-2 mx-1">
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 bg-gradient-to-br from-[#FF7340] to-[#D93000] rounded-full flex items-center justify-center text-[8px]">🏷️</div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="CupomHoje" className="w-6 h-6 rounded-full object-cover" />
                 <p className="text-white text-[9px] font-semibold">CupomHoje</p>
               </div>
               {[1,2,3].map((i) => (
@@ -180,9 +183,19 @@ export default function Page() {
             {/* Texto */}
             <div className="flex-1 text-center lg:text-left">
               {/* Badge */}
+              {/* Logo em destaque */}
+              <div className="flex justify-center lg:justify-start mb-6">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/logo.png"
+                  alt="CupomHoje"
+                  className="w-20 h-20 rounded-2xl object-cover shadow-xl shadow-[#FF5A1F]/20 ring-2 ring-[#FF5A1F]/30"
+                />
+              </div>
+
               <div className="inline-flex items-center gap-2 bg-[#229ED9]/10 border border-[#229ED9]/25 text-[#229ED9] rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest mb-6">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#229ED9] animate-pulse" />
-                Canal oficial • Telegram • Grátis
+                Canal oficial · Telegram · Grátis
               </div>
 
               <h1 className="font-black text-4xl sm:text-5xl lg:text-6xl leading-[1.05] mb-5">
@@ -191,17 +204,17 @@ export default function Page() {
               </h1>
 
               <p className="text-white/50 text-lg mb-3 max-w-lg mx-auto lg:mx-0 leading-relaxed">
-                Receba ofertas de centenas de lojas direto no Telegram — com % de desconto,
+                Receba ofertas de centenas de lojas direto no Telegram, com % de desconto,
                 preço original vs atual e link direto. Sem spam, sem cadastro.
               </p>
               <p className="text-white/30 text-sm mb-8 max-w-lg mx-auto lg:mx-0">
-                🔔 Novas ofertas a cada <strong className="text-white/50">15 minutos</strong> — Shopee, Mercado Livre, AliExpress e muito mais
+                🔔 Novas ofertas a cada <strong className="text-white/50">15 minutos</strong>: Shopee, Mercado Livre, AliExpress e muito mais
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-10">
                 <a href={CANAL} target="_blank" rel="noopener noreferrer"
                    className="inline-flex items-center justify-center gap-2.5 bg-[#229ED9] hover:bg-[#1b90c8] active:scale-[0.97] text-white font-bold text-base px-8 py-3.5 rounded-2xl transition-all shadow-lg shadow-[#229ED9]/20">
-                  <TgIcon size={20} /> Canal Oficial — Grátis
+                  <TgIcon size={20} /> Canal Oficial · Grátis
                 </a>
                 <a href={COMUNIDADE} target="_blank" rel="noopener noreferrer"
                    className="inline-flex items-center justify-center gap-2.5 bg-white/[0.06] hover:bg-white/10 active:scale-[0.97] text-white font-semibold text-base px-8 py-3.5 rounded-2xl transition-all border border-white/10">
@@ -307,13 +320,13 @@ export default function Page() {
               <span className="text-[#229ED9]">em breve no canal</span>
             </h2>
             <p className="text-white/40 mb-8 leading-relaxed">
-              A cada 15 minutos uma nova oferta chega no canal — Amazon, AliExpress, Shein,
+              A cada 15 minutos uma nova oferta chega no canal. Amazon, AliExpress, Shein,
               Shopee, Mercado Livre e centenas de lojas. Entre agora e não perca nenhuma.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <a href={CANAL} target="_blank" rel="noopener noreferrer"
                  className="inline-flex items-center justify-center gap-2.5 bg-[#229ED9] hover:bg-[#1b90c8] text-white font-bold text-base px-9 py-4 rounded-2xl transition-all shadow-xl shadow-[#229ED9]/20">
-                <TgIcon size={20} /> Canal Oficial — Grátis
+                <TgIcon size={20} /> Canal Oficial · Grátis
               </a>
               <a href={COMUNIDADE} target="_blank" rel="noopener noreferrer"
                  className="inline-flex items-center justify-center gap-2.5 bg-white/[0.05] hover:bg-white/10 text-white/70 font-semibold text-base px-9 py-4 rounded-2xl border border-white/10 transition-all">
