@@ -34,7 +34,7 @@ function signAliExpress(params: Record<string, string>, secret: string): string 
   return createHash("md5").update(str).digest("hex").toUpperCase();
 }
 
-// ── AliExpress — busca por keyword ────────────────────────────────────────────
+// ── AliExpress — busca por keyword com filtros de qualidade ──────────────────
 async function fetchAliExpressKeyword(
   keyword: string,
   APP_KEY: string,
@@ -42,18 +42,25 @@ async function fetchAliExpressKeyword(
   TRACKING: string,
 ): Promise<Record<string, unknown>[]> {
   const timestamp = Date.now().toString();
+
+  // Faixa de preço configurável via env (padrão: miniaturas R$20–R$500)
+  const minPrice = process.env.ALIEXPRESS_MIN_PRICE ?? "20";
+  const maxPrice = process.env.ALIEXPRESS_MAX_PRICE ?? "500";
+
   const params: Record<string, string> = {
     app_key:         APP_KEY,
-    method:          "aliexpress.affiliate.hotproduct.query", // Advanced API (aprovada)
+    method:          "aliexpress.affiliate.hotproduct.query", // Advanced API aprovada
     sign_method:     "md5",
     timestamp,
     v:               "2.0",
     keywords:        keyword,
     page_no:         "1",
-    page_size:       "20",
+    page_size:       "40",              // busca mais para filtrar melhor
     target_currency: "BRL",
     target_language: "PT",
-    sort:            "LAST_VOLUME_DESC", // mais vendidos com desconto
+    sort:            "DISCOUNT_DESC",   // maior desconto primeiro
+    min_sale_price:  minPrice,
+    max_sale_price:  maxPrice,
   };
   if (TRACKING) params.tracking_id = TRACKING;
   params.sign = signAliExpress(params, APP_SECRET);
@@ -68,11 +75,22 @@ async function fetchAliExpressKeyword(
   if (!res.ok) return [];
 
   const json = await res.json() as Record<string, unknown>;
-  const resp    = (json["aliexpress_affiliate_hotproduct_query_response"]
-                ?? json["aliexpress_affiliate_product_query_response"]) as Record<string, unknown> | undefined;
-  const result  = (resp?.resp_result as Record<string, unknown> | undefined)?.result as Record<string, unknown> | undefined;
-  const list    = (result?.products as Record<string, unknown> | undefined)?.product;
-  return Array.isArray(list) ? list : [];
+  const resp   = (json["aliexpress_affiliate_hotproduct_query_response"]
+               ?? json["aliexpress_affiliate_product_query_response"]) as Record<string, unknown> | undefined;
+  const result = (resp?.resp_result as Record<string, unknown> | undefined)?.result as Record<string, unknown> | undefined;
+  const list   = (result?.products as Record<string, unknown> | undefined)?.product;
+
+  if (!Array.isArray(list)) return [];
+
+  // Filtro de qualidade local: mínimo 10% de desconto + avaliação ≥ 4 estrelas (80%)
+  const MIN_DISCOUNT = parseInt(process.env.ALIEXPRESS_MIN_DISCOUNT ?? "10");
+  const MIN_RATING   = parseFloat(process.env.ALIEXPRESS_MIN_RATING ?? "80");
+
+  return list.filter((p: Record<string, unknown>) => {
+    const discountPct = parseFloat(String(p.discount ?? "0").replace("%",""));
+    const rating      = parseFloat(String(p.evaluate_rate ?? "0").replace("%",""));
+    return discountPct >= MIN_DISCOUNT && (rating === 0 || rating >= MIN_RATING);
+  });
 }
 
 // ── AliExpress sync principal ─────────────────────────────────────────────────
@@ -126,7 +144,7 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
       const discountStr = String(p.discount ?? "").replace("%", "");
       const discount    = parseFloat(discountStr) || null;
 
-      // Preços — ignora valores 0 ou inválidos
+      // Preços — Advanced API retorna "BRL 67.80", remove letras e espaços
       const saleRaw  = String(p.target_sale_price     ?? "").replace(/[^\d.]/g, "");
       const origRaw  = String(p.target_original_price ?? "").replace(/[^\d.]/g, "");
       const salePrice = parseFloat(saleRaw) > 0 ? parseFloat(saleRaw) : null;
@@ -137,15 +155,17 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
       // Imagem
       const imageUrl = String(p.product_main_image_url ?? "").trim() || null;
 
-      // Link de afiliado
+      // Link: Advanced API já retorna promotion_link rastreado
       const promoLink =
         String(p.promotion_link     ?? "").trim() ||
         String(p.product_detail_url ?? "").trim() ||
         `https://pt.aliexpress.com/item/${productId}.html`;
 
-      // Descrição com preço real (só se ambos > 0 e original > sale)
+      // Descrição com preços reais
       const desc = origPrice && salePrice && origPrice > salePrice
         ? `De R$${origPrice.toFixed(0)} por R$${salePrice.toFixed(0)} — ${title}`
+        : salePrice
+        ? `R$${salePrice.toFixed(0)} — ${title}`
         : title;
 
       const { error } = await supabase.from("coupons").upsert({
