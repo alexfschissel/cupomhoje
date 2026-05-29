@@ -28,13 +28,12 @@ function db() {
   );
 }
 
-// Parseia CSV simples (sem library externa)
-function parseCSV(csv: string): Record<string, string>[] {
+// Parseia CSV em streaming (linha por linha)
+function* parseCSVLines(csv: string) {
   const lines = csv.split("\n");
-  if (lines.length < 2) return [];
+  if (lines.length < 2) return;
 
   const headers = lines[0].split(",").map(h => h.trim());
-  const rows: Record<string, string>[] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -46,10 +45,8 @@ function parseCSV(csv: string): Record<string, string>[] {
     for (let j = 0; j < headers.length; j++) {
       row[headers[j]] = values[j] ?? "";
     }
-    rows.push(row);
+    yield row;
   }
-
-  return rows;
 }
 
 export async function POST(req: NextRequest) {
@@ -84,27 +81,23 @@ export async function POST(req: NextRequest) {
     const csv = decompressed.toString("utf-8");
     console.log(`[AWIN Feed] Decompressed ${csv.length} chars`);
 
-    // 3. Parseia CSV
-    const rows = parseCSV(csv);
-    console.log(`[AWIN Feed] Parsed ${rows.length} products`);
-
-    if (rows.length === 0) {
-      return NextResponse.json({
-        ok: false,
-        msg: "Nenhum produto encontrado no feed"
-      });
-    }
-
-    // 4. Salva no Supabase
+    // 3. Salva no Supabase com streaming
     const supabase = db();
     let synced = 0;
+    let processed = 0;
     const storeIds: Record<string, string> = {}; // Cache de merchant_id → store.id
+    const coupons: Record<string, unknown>[] = [];
 
-    for (let i = 0; i < rows.length; i += 50) {
-      const batch = rows.slice(i, i + 50);
-      const coupons: Record<string, unknown>[] = [];
+    // Processa linha por linha
+    for (const row of parseCSVLines(csv)) {
+      processed++;
 
-      for (const row of batch) {
+      // A cada 100 linhas loga progresso
+      if (processed % 100 === 0) {
+        console.log(`[AWIN Feed] Processadas ${processed} linhas...`);
+      }
+
+      {
         const merchantName = row["merchant_name"] ?? "";
         const merchantId   = row["merchant_id"] ?? "";
         const productName  = row["product_name"] ?? "";
@@ -160,19 +153,29 @@ export async function POST(req: NextRequest) {
           is_active:      true,
           expires_at:     null,
         });
-      }
 
-      if (coupons.length > 0) {
-        const { error } = await supabase
-          .from("coupons")
-          .upsert(coupons, { onConflict: "external_id" });
-        if (!error) synced += coupons.length;
+        // Faz batch insert a cada 100 produtos para não sobrecarregar
+        if (coupons.length >= 100) {
+          const { error } = await supabase
+            .from("coupons")
+            .upsert(coupons, { onConflict: "external_id" });
+          if (!error) synced += coupons.length;
+          coupons.length = 0; // Limpa o array
+        }
       }
+    }
+
+    // Insere os últimos produtos que não chegaram a 100
+    if (coupons.length > 0) {
+      const { error } = await supabase
+        .from("coupons")
+        .upsert(coupons, { onConflict: "external_id" });
+      if (!error) synced += coupons.length;
     }
 
     return NextResponse.json({
       ok: true,
-      received: rows.length,
+      processed,
       synced,
       unique_merchants: Object.keys(storeIds).length,
       ts: new Date().toISOString(),
