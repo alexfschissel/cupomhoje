@@ -22,6 +22,8 @@ export default function RootLayout({
     <html lang="pt-BR">
       <head>
         <meta name="lomadee" content="2324685" />
+        {/* AWIN Publisher MasterTag — converte links em afiliados rastreados */}
+        <script src="https://www.dwin2.com/pub.2909655.min.js" defer async></script>
       </head>
       <body className="bg-[#0A0A0A] text-white antialiased">{children}</body>
     </html>
