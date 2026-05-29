@@ -18,7 +18,6 @@ const LOJAS = [
     desc: "Até 80% OFF",
     cupons: 20,
     url: "https://pt.aliexpress.com",
-    cor: "#FF4747",
   },
   {
     nome: "Amazon",
@@ -26,15 +25,34 @@ const LOJAS = [
     desc: "Frete grátis acima de R$79",
     cupons: 15,
     url: "https://amzn.to/4u0Mtck",
-    cor: "#FF9900",
   },
   {
     nome: "LG BR",
     logo: "https://logo.clearbit.com/lg.com",
-    desc: "Até 45% OFF em TVs",
+    desc: "TVs e monitores com desconto",
     cupons: 40,
-    url: "https://www.awin1.com/cread.php?s=4782187&v=33061&q=605388&r=2909655",
-    cor: "#A50034",
+    url: "https://tidd.ly/4e8Oz5k",
+  },
+  {
+    nome: "Stanley BR",
+    logo: "https://logo.clearbit.com/stanley1913.com",
+    desc: "Produtos premium Stanley",
+    cupons: 5,
+    url: "https://tidd.ly/4wYe9S1",
+  },
+  {
+    nome: "Arno BR",
+    logo: "https://logo.clearbit.com/arno.com.br",
+    desc: "Eletrodomésticos de qualidade",
+    cupons: 5,
+    url: "https://tidd.ly/3RyU4l7",
+  },
+  {
+    nome: "Evas BR",
+    logo: "https://logo.clearbit.com/evas.com.br",
+    desc: "Moda feminina com estilo",
+    cupons: 10,
+    url: "https://tidd.ly/4tWdsG1",
   },
   {
     nome: "Binance",
@@ -42,7 +60,6 @@ const LOJAS = [
     desc: "Bônus exclusivo no cadastro",
     cupons: 1,
     url: "https://www.binance.com/referral/earn-together/refer2earn-usdc/claim?hl=pt&ref=GRO_28502_8H8KI&utm_source=bitcoinagora",
-    cor: "#F0B90B",
   },
   {
     nome: "Bybit",
@@ -50,7 +67,6 @@ const LOJAS = [
     desc: "Até $30.000 em bônus",
     cupons: 1,
     url: "https://www.bybit.com/invite?ref=RKKGRO",
-    cor: "#F7A600",
   },
   {
     nome: "Ledger",
@@ -58,15 +74,13 @@ const LOJAS = [
     desc: "Carteira hardware Bitcoin",
     cupons: 1,
     url: "https://shop.ledger.com/pt/pages/referral-program?referral_code=KX6C02RWJNBKE",
-    cor: "#000000",
   },
   {
     nome: "Wise",
     logo: "https://logo.clearbit.com/wise.com",
-    desc: "Transferências sem taxas abusivas",
+    desc: "Transferências internacionais",
     cupons: 1,
     url: "https://wise.com/invite/ilpc/alexfernandos13",
-    cor: "#00B9A7",
   },
   {
     nome: "Nubank",
@@ -74,7 +88,6 @@ const LOJAS = [
     desc: "Conta com rendimento > poupança",
     cupons: 1,
     url: "https://nubank.com.br/indicacao/nu/?id=toVXBhZlgfZSVRRj6jl_hw",
-    cor: "#8A05BE",
   },
   {
     nome: "Kast",
@@ -82,7 +95,6 @@ const LOJAS = [
     desc: "Cartão crypto grátis",
     cupons: 1,
     url: "https://go.kast.xyz/VqVO/N137G56K",
-    cor: "#6C5CE7",
   },
 ];
 
