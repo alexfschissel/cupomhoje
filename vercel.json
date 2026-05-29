@@ -5,6 +5,8 @@
   "installCommand": "npm install",
   "crons": [
     { "path": "/api/sync", "schedule": "0 6 * * *" },
-    { "path": "/api/post?limit=10", "schedule": "0 9 * * *" }
+    { "path": "/api/sync-mercadolivre-api", "schedule": "30 6 * * *" },
+    { "path": "/api/sync-awin-merchants", "schedule": "0 7 * * *" },
+    { "path": "/api/post?limit=20", "schedule": "*/15 * * * *" }
   ]
 }
