@@ -34,79 +34,53 @@ function safeUrl(url: string) {
   return url.replace(/&/g, "&amp;");
 }
 
-// ── Formata mensagem ──────────────────────────────────────────────────────────
+// ── Formata mensagem — padrão premium (imagem 4) ──────────────────────────────
 function format(c: Coupon): string {
   const store = c.store_name.toUpperCase();
   const desc  = c.description.trim();
   const lines: string[] = [];
 
-  // Detecta "De R$ORIG por R$SALE — Nome" (desconto real, orig > sale)
+  // Detecta "De R$ORIG por R$SALE — Nome"
   const priceMatch = desc.match(/^De R\$(\S+) por R\$(\S+) — (.+)$/i);
   const origNum = priceMatch ? parseFloat(priceMatch[1].replace(",", ".")) : 0;
   const saleNum = priceMatch ? parseFloat(priceMatch[2].replace(",", ".")) : 0;
-  const hasDiscount = origNum > 0 && saleNum > 0 && origNum > saleNum; // preços DIFERENTES
 
-  // Detecta "R$PRICE — Nome" (preço atual sem comparação — LG BR)
-  const priceOnlyMatch = !priceMatch ? desc.match(/^R\$(\S+) — (.+)$/i) : null;
-
-  // Label de desconto
-  const discountLabel =
-    c.discount_type === "percent" && c.discount_value && c.discount_value > 0
-      ? `${Math.round(c.discount_value)}% OFF`
-      : c.discount_type === "fixed" && c.discount_value && c.discount_value > 0
-      ? `R$${c.discount_value} de desconto`
-      : c.discount_type === "free_shipping"
-      ? "Frete Grátis"
-      : hasDiscount
-      ? `${Math.round(((origNum - saleNum) / origNum) * 100)}% OFF`
-      : "Promoção especial";
+  const productName = priceMatch ? priceMatch[3] : desc;
+  const discountPct = c.discount_value && c.discount_value > 0 ? Math.round(c.discount_value) : null;
 
   // CTA baseado na loja
   const cta =
     store.includes("ALIEXPRESS") ? "COMPRAR NO ALIEXPRESS" :
     store.includes("AMAZON")     ? "COMPRAR NA AMAZON"     :
+    store.includes("MERCADO")    ? "COMPRAR NO ML"         :
     store.includes("LG")         ? "COMPRAR NA LG"         :
     store.includes("STANLEY")    ? "COMPRAR NA STANLEY"    :
-    store.includes("ARNO")       ? "COMPRAR NA ARNO"       :
     c.code                       ? "COMPRAR AGORA"         :
                                    "ACESSAR AGORA";
 
-  lines.push(`🏷 <b>${store}</b>`);
-  lines.push(SEP);
-  lines.push(`🏷 ${discountLabel}`);
+  // Layout premium (padrão imagem 4)
+  lines.push(`📦 ${store}`);
 
-  if (hasDiscount && priceMatch) {
-    // Tem desconto real — mostra comparação de preços
-    lines.push(`💲 De R$${priceMatch[1]} por R$${priceMatch[2]}`);
-    lines.push(`🛒 ${priceMatch[3].slice(0, 100)}`);
-  } else if (priceMatch) {
-    // Preços iguais — mostra só o nome, sem comparação
-    lines.push(`🛒 ${priceMatch[3].slice(0, 100)}`);
-  } else if (priceOnlyMatch) {
-    // Só preço atual (LG BR sem rrp) — mostra preço e nome
-    lines.push(`💲 R$${priceOnlyMatch[1]}`);
-    lines.push(`🛒 ${priceOnlyMatch[2].slice(0, 100)}`);
-  } else {
-    lines.push(`🛒 ${desc.slice(0, 100)}`);
+  if (discountPct) {
+    lines.push(`🏷 <b>${discountPct}% OFF</b>`);
   }
 
-  if (c.discount_value && c.discount_value > 0)
-    lines.push(`💰 ${Math.round(c.discount_value)}% de desconto`);
-  else if (hasDiscount)
-    lines.push(`💰 ${Math.round(((origNum - saleNum) / origNum) * 100)}% de desconto`);
+  if (origNum > 0 && saleNum > 0 && origNum > saleNum) {
+    lines.push(`De <s>R$${Math.round(origNum)}</s> por <b>R$${Math.round(saleNum)}</b>`);
+  } else if (saleNum > 0) {
+    lines.push(`<b>R$${Math.round(saleNum)}</b>`);
+  }
 
-  if (c.code)
-    lines.push(`☝️ Cupom: <code>${c.code}</code>`);
-  else
+  lines.push(`${productName.slice(0, 100)}`);
+
+  if (c.code) {
+    lines.push(`\n💳 Cupom: <code>${c.code}</code>`);
+  } else {
     lines.push(`✅ Desconto automático`);
+  }
 
-  if (c.expires_at)
-    lines.push(`⏰ Válido até ${new Date(c.expires_at).toLocaleDateString("pt-BR")}`);
-
-  lines.push("");
-  lines.push(`🛒 <a href="${safeUrl(c.affiliate_url)}">${cta}</a>`);
-  lines.push(SEP);
-  lines.push("📲 @cupomhojeoficial");
+  lines.push(`\n<a href="${safeUrl(c.affiliate_url)}">${cta}</a>`);
+  lines.push(`@cupomhojeoficial`);
 
   return lines.join("\n");
 }
@@ -147,11 +121,16 @@ export async function GET(req: NextRequest) {
     const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "@cupomhojeoficial";
     const supabase = db();
 
-    // Busca todos os produtos — sem ordenação para garantir variedade entre lojas
+    // Busca produtos com desconto real nos últimos 2h não foram postados
+    const twoHoursAgo = new Date();
+    twoHoursAgo.setHours(twoHoursAgo.getHours() - 2);
+
     const { data, error } = await supabase
       .from("coupons_with_store")
-      .select("id, code, description, discount_type, discount_value, affiliate_url, expires_at, store_name, image_url")
+      .select("id, code, description, discount_type, discount_value, affiliate_url, expires_at, store_name, image_url, last_posted_at")
       .eq("is_active", true)
+      .gt("discount_value", 0) // Só produtos com desconto > 0
+      .or(`last_posted_at.is.null,last_posted_at.lt.${twoHoursAgo.toISOString()}`) // Não postado ou postado há mais de 2h
       .limit(300);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -181,6 +160,8 @@ export async function GET(req: NextRequest) {
     }
 
     const results = [];
+    const now = new Date().toISOString();
+
     for (const coupon of shuffled) {
       try {
         const text   = format(coupon);
@@ -188,6 +169,12 @@ export async function GET(req: NextRequest) {
 
         // Sempre usa sendMessage — Telegram puxa preview automático do link
         msgId = await sendMessage(text, TOKEN, CHAT_ID);
+
+        // Atualiza último post do produto (para não repetir em 2h)
+        await supabase
+          .from("coupons")
+          .update({ last_posted_at: now })
+          .eq("id", coupon.id);
 
         results.push({ id: coupon.id, store: coupon.store_name, ok: true, message_id: msgId, has_image: !!coupon.image_url });
       } catch (e) {
