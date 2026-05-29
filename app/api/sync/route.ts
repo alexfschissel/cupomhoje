@@ -26,11 +26,12 @@ function toSlug(name: string, suffix: string) {
 
 // ── AliExpress signing ────────────────────────────────────────────────────────
 function signAliExpress(params: Record<string, string>, secret: string): string {
+  // AliExpress TOP API usa MD5: SECRET + sorted_kvs + SECRET
   const sorted = Object.keys(params).sort();
   let str = secret;
   for (const key of sorted) str += key + params[key];
   str += secret;
-  return createHash("sha256").update(str).digest("hex").toUpperCase();
+  return createHash("md5").update(str).digest("hex").toUpperCase();
 }
 
 // ── AliExpress ────────────────────────────────────────────────────────────────
@@ -47,7 +48,7 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
     const params: Record<string, string> = {
       app_key:         APP_KEY,
       method:          "aliexpress.affiliate.hotproduct.query",
-      sign_method:     "sha256",
+      sign_method:     "md5",
       timestamp,
       v:               "2.0",
       page_no:         "1",
