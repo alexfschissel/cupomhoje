@@ -193,14 +193,22 @@ async function saveProducts(items: ApifyProduct[]) {
 
   if (!store?.id) return NextResponse.json({ error: "Falha ao criar store Amazon" }, { status: 500 });
 
-  const processed = items.map(p => processProduct(p, store.id));
-  // Remove campos internos antes de salvar
-  const coupons = processed
-    .filter((c): c is NonNullable<ReturnType<typeof processProduct>> => c !== null)
-    .map(({ _hasSale: _, ...c }) => c);
+  const coupons: Record<string, unknown>[] = [];
+  for (const p of items) {
+    try {
+      const result = processProduct(p, store.id);
+      if (result) {
+        // Remove campo interno _hasSale antes de salvar
+        const { _hasSale: _ignore, ...coupon } = result as typeof result & { _hasSale?: unknown };
+        coupons.push(coupon as Record<string, unknown>);
+      }
+    } catch {
+      // Ignora produto com estrutura inválida
+    }
+  }
 
   if (coupons.length === 0)
-    return NextResponse.json({ ok: true, synced: 0, msg: `Nenhum produto com desconto ≥5% entre ${items.length} recebidos` });
+    return NextResponse.json({ ok: true, synced: 0, msg: `Nenhum produto válido entre ${items.length} recebidos` });
 
   let synced = 0;
   for (let i = 0; i < coupons.length; i += 20) {
