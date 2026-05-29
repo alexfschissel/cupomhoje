@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 function ok(req: NextRequest) {
@@ -23,60 +24,168 @@ function toSlug(name: string, suffix: string) {
     + "-" + suffix;
 }
 
+// ── AliExpress signing ────────────────────────────────────────────────────────
+function signAliExpress(params: Record<string, string>, secret: string): string {
+  const sorted = Object.keys(params).sort();
+  let str = secret;
+  for (const key of sorted) str += key + params[key];
+  str += secret;
+  return createHash("sha256").update(str).digest("hex").toUpperCase();
+}
+
+// ── AliExpress ────────────────────────────────────────────────────────────────
+async function syncAliExpress(supabase: ReturnType<typeof db>) {
+  const APP_KEY    = process.env.ALIEXPRESS_APP_KEY;
+  const APP_SECRET = process.env.ALIEXPRESS_APP_SECRET;
+  const TRACKING   = process.env.ALIEXPRESS_TRACKING_ID ?? "";
+
+  if (!APP_KEY || !APP_SECRET)
+    return { synced: 0, skipped: 0, error: "ALIEXPRESS_APP_KEY ou ALIEXPRESS_APP_SECRET não configurados" };
+
+  try {
+    const timestamp = Date.now().toString();
+    const params: Record<string, string> = {
+      app_key:         APP_KEY,
+      method:          "aliexpress.affiliate.hotproduct.query",
+      sign_method:     "sha256",
+      timestamp,
+      v:               "2.0",
+      page_no:         "1",
+      page_size:       "20",
+      target_currency: "BRL",
+      target_language: "PT",
+    };
+    if (TRACKING) params.tracking_id = TRACKING;
+    params.sign = signAliExpress(params, APP_SECRET);
+
+    const res = await fetch("https://api-sg.aliexpress.com/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body:   new URLSearchParams(params).toString(),
+      signal: AbortSignal.timeout(20000),
+    });
+
+    if (!res.ok) {
+      const t = await res.text();
+      return { synced: 0, skipped: 0, error: `AliExpress HTTP ${res.status}: ${t.slice(0, 200)}` };
+    }
+
+    const json = await res.json() as Record<string, unknown>;
+
+    // Navega na estrutura da resposta
+    const resp = json["aliexpress_affiliate_hotproduct_query_response"] as Record<string, unknown> | undefined;
+    const result = (resp?.resp_result as Record<string, unknown> | undefined)?.result as Record<string, unknown> | undefined;
+    const products = (result?.products as Record<string, unknown> | undefined)?.product as Record<string, unknown>[] | undefined;
+
+    if (!products || products.length === 0)
+      return { synced: 0, skipped: 0, error: `AliExpress sem produtos. Resposta: ${JSON.stringify(json).slice(0, 300)}` };
+
+    // Garante que a loja AliExpress existe
+    const { data: aliStore } = await supabase
+      .from("stores")
+      .upsert({ slug: "aliexpress", name: "AliExpress", website_url: "https://aliexpress.com", affiliate_network: "aliexpress", is_active: true }, { onConflict: "slug" })
+      .select("id").single();
+
+    if (!aliStore?.id) return { synced: 0, skipped: 0, error: "Falha ao criar loja AliExpress" };
+
+    let synced = 0, skipped = 0;
+
+    for (const p of products) {
+      const productId   = String(p.product_id ?? "");
+      const title       = String(p.product_title ?? "").slice(0, 150);
+      const promoLink   = String(p.promotion_link ?? "");
+      const discountStr = String(p.discount ?? "").replace("%", "");
+      const discount    = parseFloat(discountStr) || null;
+
+      // Preços
+      const saleRaw  = String(p.target_sale_price     ?? "").replace(/[^\d.]/g, "");
+      const origRaw  = String(p.target_original_price ?? "").replace(/[^\d.]/g, "");
+      const salePrice = parseFloat(saleRaw) || null;
+      const origPrice = parseFloat(origRaw) || null;
+
+      if (!productId || !promoLink) { skipped++; continue; }
+
+      const desc = origPrice && salePrice
+        ? `De R$${origPrice.toFixed(0)} por R$${salePrice.toFixed(0)} — ${title}`
+        : title;
+
+      const { error } = await supabase.from("coupons").upsert({
+        store_id:       aliStore.id,
+        code:           "",
+        description:    desc,
+        discount_type:  discount ? "percent" : "other",
+        discount_value: discount,
+        affiliate_url:  promoLink,
+        external_id:    `ali-${productId}`,
+        is_verified:    true,
+        is_active:      true,
+        expires_at:     null,
+      }, { onConflict: "external_id" });
+
+      error ? skipped++ : synced++;
+    }
+
+    return { synced, skipped };
+
+  } catch (e) {
+    return { synced: 0, skipped: 0, error: `AliExpress erro: ${String(e)}` };
+  }
+}
+
 // ── AWIN ─────────────────────────────────────────────────────────────────────
 async function syncAwin(supabase: ReturnType<typeof db>) {
   const PID = process.env.AWIN_PUBLISHER_ID;
   const TOK = process.env.AWIN_API_TOKEN;
   if (!PID || !TOK) return { synced: 0, skipped: 0, error: "AWIN não configurado" };
 
-  // Sem filtros — busca qualquer promoção dos anunciantes aprovados
-  const res = await fetch(
-    `https://api.awin.com/publishers/${PID}/promotions`,
-    { headers: { Authorization: `Bearer ${TOK}` }, cache: "no-store" }
-  );
+  try {
+    const res = await fetch(
+      `https://api.awin.com/publishers/${PID}/promotions`,
+      { headers: { Authorization: `Bearer ${TOK}` }, cache: "no-store", signal: AbortSignal.timeout(15000) }
+    );
+    if (!res.ok) {
+      const t = await res.text();
+      return { synced: 0, skipped: 0, error: `AWIN ${res.status}: ${t.slice(0, 200)}` };
+    }
 
-  if (!res.ok) {
-    const detail = await res.text();
-    return { synced: 0, skipped: 0, error: `AWIN ${res.status}: ${detail}` };
+    const json = await res.json() as { promotions?: Record<string, unknown>[] };
+    const promos = json.promotions ?? [];
+    if (promos.length === 0) return { synced: 0, skipped: 0, error: "Nenhuma promoção AWIN disponível" };
+
+    let synced = 0, skipped = 0;
+    for (const p of promos.slice(0, 300)) {
+      const advertiserId   = String(p.advertiserId ?? "");
+      const advertiserName = String(p.advertiserName ?? "Loja");
+      const promoId        = String(p.promotionId ?? p.id ?? "");
+      if (!advertiserId || !promoId) { skipped++; continue; }
+
+      const { data: store } = await supabase
+        .from("stores")
+        .upsert({ slug: toSlug(advertiserName, `aw-${advertiserId}`), name: advertiserName, affiliate_id: advertiserId, affiliate_network: "awin", is_active: true }, { onConflict: "slug" })
+        .select("id").single();
+      if (!store?.id) { skipped++; continue; }
+
+      const rawType      = String(p.discountType ?? p.type ?? "").toLowerCase();
+      const discountType = rawType.includes("percent") ? "percent" : rawType.includes("cash") || rawType.includes("fixed") ? "fixed" : rawType.includes("ship") ? "free_shipping" : "other";
+      const discountValue = (p.discountAmount as { amount?: number } | null)?.amount ?? null;
+      const advertUrl     = String(p.advertiserUrl ?? "");
+      const affiliateUrl  = `https://www.awin1.com/cread.php?awinmid=${advertiserId}&awinaffid=${PID}&p=${encodeURIComponent(advertUrl)}`;
+
+      const { error } = await supabase.from("coupons").upsert({
+        store_id: store.id, code: String(p.code ?? ""),
+        description: String(p.description ?? p.displayTitle ?? p.title ?? "Promoção"),
+        discount_type: discountType, discount_value: discountValue,
+        affiliate_url: affiliateUrl, external_id: `awin-${promoId}`,
+        is_verified: true, is_active: true,
+        expires_at: p.endDate ? new Date(String(p.endDate)).toISOString() : null,
+      }, { onConflict: "external_id" });
+
+      error ? skipped++ : synced++;
+    }
+    return { synced, skipped };
+  } catch (e) {
+    return { synced: 0, skipped: 0, error: String(e) };
   }
-
-  const json = await res.json() as { promotions?: Record<string, unknown>[] };
-  const promos = json.promotions ?? [];
-  if (promos.length === 0) return { synced: 0, skipped: 0, error: "Nenhuma promoção AWIN disponível para anunciantes aprovados" };
-
-  let synced = 0, skipped = 0;
-
-  for (const p of promos.slice(0, 300)) {
-    const advertiserId   = String(p.advertiserId ?? "");
-    const advertiserName = String(p.advertiserName ?? "Loja");
-    const promoId        = String(p.promotionId ?? p.id ?? "");
-    if (!advertiserId || !promoId) { skipped++; continue; }
-
-    const { data: store } = await supabase
-      .from("stores")
-      .upsert({ slug: toSlug(advertiserName, `aw-${advertiserId}`), name: advertiserName, affiliate_id: advertiserId, affiliate_network: "awin", is_active: true }, { onConflict: "slug" })
-      .select("id").single();
-    if (!store?.id) { skipped++; continue; }
-
-    const rawType      = String(p.discountType ?? p.type ?? "").toLowerCase();
-    const discountType = rawType.includes("percent") ? "percent" : rawType.includes("cash") || rawType.includes("fixed") ? "fixed" : rawType.includes("ship") ? "free_shipping" : "other";
-    const discountValue = (p.discountAmount as { amount?: number } | null)?.amount ?? null;
-    const advertUrl     = String(p.advertiserUrl ?? "");
-    const affiliateUrl  = `https://www.awin1.com/cread.php?awinmid=${advertiserId}&awinaffid=${PID}&p=${encodeURIComponent(advertUrl)}`;
-
-    const { error } = await supabase.from("coupons").upsert({
-      store_id: store.id, code: String(p.code ?? ""),
-      description: String(p.description ?? p.displayTitle ?? p.title ?? "Promoção"),
-      discount_type: discountType, discount_value: discountValue,
-      affiliate_url: affiliateUrl, external_id: `awin-${promoId}`,
-      is_verified: true, is_active: true,
-      expires_at: p.endDate ? new Date(String(p.endDate)).toISOString() : null,
-    }, { onConflict: "external_id" });
-
-    error ? skipped++ : synced++;
-  }
-
-  return { synced, skipped };
 }
 
 // ── LOMADEE ───────────────────────────────────────────────────────────────────
@@ -84,82 +193,58 @@ async function syncLomadee(supabase: ReturnType<typeof db>) {
   const TOKEN = process.env.LOMADEE_APP_TOKEN;
   if (!TOKEN) return { synced: 0, skipped: 0, error: "LOMADEE_APP_TOKEN não configurado" };
 
-  let res: Response;
   try {
-    res = await fetch(
+    const res = await fetch(
       `https://api.lomadee.com/v3/${TOKEN}/coupon/_all`,
-      {
-        cache: "no-store",
-        signal: AbortSignal.timeout(20000),
-        headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; CupomHoje/1.0)",
-          "Accept": "application/json",
-          "Accept-Language": "pt-BR,pt;q=0.9",
-        },
-      }
+      { cache: "no-store", signal: AbortSignal.timeout(20000),
+        headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } }
     );
-  } catch (fetchErr) {
-    return { synced: 0, skipped: 0, error: `Lomadee fetch falhou: ${String(fetchErr)}` };
+    if (!res.ok) {
+      const t = await res.text();
+      return { synced: 0, skipped: 0, error: `Lomadee ${res.status}: ${t.slice(0, 200)}` };
+    }
+
+    const json = await res.json() as { coupons?: Record<string, unknown>[] };
+    const coupons = json.coupons ?? [];
+    if (coupons.length === 0) return { synced: 0, skipped: 0, error: "Nenhum cupom Lomadee" };
+
+    let synced = 0, skipped = 0;
+    for (const c of coupons.slice(0, 500)) {
+      const store     = c.store as Record<string, unknown> | null;
+      const storeId   = String(store?.id ?? "");
+      const storeName = String(store?.name ?? "Loja");
+      const couponId  = String(c.id ?? "");
+      if (!storeId || !couponId) { skipped++; continue; }
+
+      const { data: storeRow } = await supabase
+        .from("stores")
+        .upsert({ slug: toSlug(storeName, `lm-${storeId}`), name: storeName, logo_url: String(store?.thumbnail ?? ""), website_url: String(store?.link ?? ""), affiliate_id: storeId, affiliate_network: "lomadee", is_active: true }, { onConflict: "slug" })
+        .select("id").single();
+      if (!storeRow?.id) { skipped++; continue; }
+
+      const desc = String(c.description ?? "").toUpperCase();
+      const discountType =
+        desc.includes("%")                          ? "percent"      :
+        desc.includes("FRETE GRÁTIS") || desc.includes("FRETE GRATIS") ? "free_shipping" :
+        desc.includes("R$")                         ? "fixed"        : "other";
+      const discountValue =
+        discountType === "percent" ? parseFloat(desc.match(/(\d+)%/)?.[1] ?? "0") :
+        discountType === "fixed"   ? parseFloat(desc.match(/R\$\s?(\d+)/)?.[1] ?? "0") : null;
+
+      const { error } = await supabase.from("coupons").upsert({
+        store_id: storeRow.id, code: String(c.code ?? ""),
+        description: String(c.description ?? "Cupom"), discount_type: discountType, discount_value: discountValue,
+        affiliate_url: String(c.link ?? ""), external_id: `lm-${couponId}`,
+        is_verified: true, is_active: true,
+        expires_at: c.vigency ? new Date(String(c.vigency)).toISOString() : null,
+      }, { onConflict: "external_id" });
+
+      error ? skipped++ : synced++;
+    }
+    return { synced, skipped };
+  } catch (e) {
+    return { synced: 0, skipped: 0, error: `Lomadee fetch falhou: ${String(e)}` };
   }
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    return { synced: 0, skipped: 0, error: `Lomadee ${res.status}: ${detail.slice(0, 200)}` };
-  }
-
-  const json = await res.json() as { coupons?: Record<string, unknown>[] };
-  const coupons = json.coupons ?? [];
-  if (coupons.length === 0) return { synced: 0, skipped: 0, error: "Nenhum cupom Lomadee retornado" };
-
-  let synced = 0, skipped = 0;
-
-  for (const c of coupons.slice(0, 500)) {
-    const store    = c.store as Record<string, unknown> | null;
-    const storeId  = String(store?.id ?? "");
-    const storeName = String(store?.name ?? "Loja");
-    const couponId  = String(c.id ?? "");
-    if (!storeId || !couponId) { skipped++; continue; }
-
-    const { data: storeRow } = await supabase
-      .from("stores")
-      .upsert({
-        slug: toSlug(storeName, `lm-${storeId}`),
-        name: storeName,
-        logo_url: String(store?.thumbnail ?? ""),
-        website_url: String(store?.link ?? ""),
-        affiliate_id: storeId,
-        affiliate_network: "lomadee",
-        is_active: true,
-      }, { onConflict: "slug" })
-      .select("id").single();
-    if (!storeRow?.id) { skipped++; continue; }
-
-    const desc = String(c.description ?? "").toUpperCase();
-    const discountType =
-      desc.includes("%")                          ? "percent"      :
-      desc.includes("FRETE GRÁTIS") || desc.includes("FRETE GRATIS") ? "free_shipping" :
-      desc.includes("R$")                         ? "fixed"        : "other";
-    const discountValue =
-      discountType === "percent" ? parseFloat(desc.match(/(\d+)%/)?.[1] ?? "0") :
-      discountType === "fixed"   ? parseFloat(desc.match(/R\$\s?(\d+)/)?.[1] ?? "0") : null;
-
-    const { error } = await supabase.from("coupons").upsert({
-      store_id: storeRow.id,
-      code: String(c.code ?? ""),
-      description: String(c.description ?? "Cupom Lomadee"),
-      discount_type: discountType,
-      discount_value: discountValue,
-      affiliate_url: String(c.link ?? ""),
-      external_id: `lm-${couponId}`,
-      is_verified: true,
-      is_active: true,
-      expires_at: c.vigency ? new Date(String(c.vigency)).toISOString() : null,
-    }, { onConflict: "external_id" });
-
-    error ? skipped++ : synced++;
-  }
-
-  return { synced, skipped };
 }
 
 // ── HANDLER ───────────────────────────────────────────────────────────────────
@@ -170,26 +255,27 @@ export async function GET(req: NextRequest) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL)  missing.push("NEXT_PUBLIC_SUPABASE_URL");
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
   if (missing.length > 0)
-    return NextResponse.json({ error: "Variáveis faltando no Vercel", missing }, { status: 500 });
+    return NextResponse.json({ error: "Variáveis faltando", missing }, { status: 500 });
 
   try {
     const supabase = db();
 
-    const [awin, lomadee] = await Promise.allSettled([
+    const [aliResult, awinResult, lomadeeResult] = await Promise.allSettled([
+      syncAliExpress(supabase),
       syncAwin(supabase),
       syncLomadee(supabase),
     ]);
 
-    // Desativa cupons expirados
     await supabase.from("coupons")
       .update({ is_active: false })
       .lt("expires_at", new Date().toISOString())
       .eq("is_active", true);
 
     return NextResponse.json({
-      ok: true,
-      awin:    awin.status    === "fulfilled" ? awin.value    : { error: String(awin.reason)    },
-      lomadee: lomadee.status === "fulfilled" ? lomadee.value : { error: String(lomadee.reason) },
+      ok:       true,
+      aliexpress: aliResult.status    === "fulfilled" ? aliResult.value    : { error: String(aliResult.reason)    },
+      awin:       awinResult.status   === "fulfilled" ? awinResult.value   : { error: String(awinResult.reason)   },
+      lomadee:    lomadeeResult.status === "fulfilled" ? lomadeeResult.value : { error: String(lomadeeResult.reason) },
       ts: new Date().toISOString(),
     });
 
