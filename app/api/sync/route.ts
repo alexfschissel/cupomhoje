@@ -29,9 +29,9 @@ async function syncAwin(supabase: ReturnType<typeof db>) {
   const TOK = process.env.AWIN_API_TOKEN;
   if (!PID || !TOK) return { synced: 0, skipped: 0, error: "AWIN não configurado" };
 
-  // Sem filtro type=voucher — LG/Stanley/Arno/Evas têm apenas deals/cashback
+  // Sem filtros — busca qualquer promoção dos anunciantes aprovados
   const res = await fetch(
-    `https://api.awin.com/publishers/${PID}/promotions?relationship=joined`,
+    `https://api.awin.com/publishers/${PID}/promotions`,
     { headers: { Authorization: `Bearer ${TOK}` }, cache: "no-store" }
   );
 
