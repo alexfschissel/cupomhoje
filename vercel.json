@@ -5,6 +5,6 @@
   "installCommand": "npm install",
   "crons": [
     { "path": "/api/sync", "schedule": "0 6 * * *" },
-    { "path": "/api/post", "schedule": "0 9 * * *" }
+    { "path": "/api/post?limit=10", "schedule": "0 9 * * *" }
   ]
 }
