@@ -43,55 +43,65 @@ function amazonLink(asin: string, url?: string): string {
   return `https://www.amazon.com.br/dp/${asin}?tag=${AMAZON_TAG}`;
 }
 
+// Estrutura real retornada pelo junglee/Amazon-crawler
 type ApifyProduct = {
   asin?: string;
   title?: string;
-  name?: string;
-  price?: number | string;
-  listPrice?: number | string;
-  originalPrice?: number | string;
-  discountedPrice?: number | string;
-  savings?: number | string;
-  savingsPercentage?: number | string;
+  price?: { value?: number; currency?: string } | number | string | null;
+  listPrice?: { value?: number } | number | string | null;
   thumbnailImage?: string;
   image?: string;
   url?: string;
-  stars?: number | string;
-  reviewsCount?: number | string;
+  stars?: number | string | null;
+  reviewsCount?: number | null;
+  inStock?: boolean;
+  categoryPageData?: { saleSummary?: string };
 };
+
+function parsePrice(raw: unknown): number | null {
+  if (!raw) return null;
+  if (typeof raw === "number") return raw > 0 ? raw : null;
+  if (typeof raw === "object" && raw !== null && "value" in raw) {
+    const v = (raw as { value?: number }).value;
+    return typeof v === "number" && v > 0 ? v : null;
+  }
+  const n = parseFloat(String(raw).replace(/[^\d.]/g, ""));
+  return n > 0 ? n : null;
+}
 
 function processProduct(p: ApifyProduct, storeId: string) {
   const asin  = p.asin ?? "";
-  const title = (p.title ?? p.name ?? "").slice(0, 150);
+  const title = (p.title ?? "").slice(0, 150);
   if (!asin || !title) return null;
+  if (p.inStock === false) return null;
 
-  // Preços — Apify pode retornar em vários formatos
-  const saleNum = parseFloat(String(p.price ?? p.discountedPrice ?? "0").replace(/[^\d.]/g, "")) || null;
-  const origNum = parseFloat(String(p.listPrice ?? p.originalPrice ?? "0").replace(/[^\d.]/g, "")) || null;
+  const saleNum = parsePrice(p.price);
+  const origNum = parsePrice(p.listPrice);
 
-  // % de desconto
+  // Desconto a partir dos preços
   let discountPct: number | null = null;
-  if (p.savingsPercentage) {
-    discountPct = parseFloat(String(p.savingsPercentage).replace(/[^\d.]/g, "")) || null;
-  } else if (origNum && saleNum && origNum > saleNum) {
+  if (origNum && saleNum && origNum > saleNum) {
     discountPct = Math.round(((origNum - saleNum) / origNum) * 100);
   }
+  // Desconto a partir do categoryPageData (ex: "R$ 20,00 off")
+  const saleSummary = p.categoryPageData?.saleSummary ?? "";
+  const hasSale = saleSummary.toLowerCase().includes("off") || discountPct !== null;
 
-  // Só importa se tiver desconto real
-  if (!discountPct || discountPct < 5) return null;
-
+  // Monta descrição
   const desc = origNum && saleNum && origNum > saleNum
     ? `De R$${origNum.toFixed(0)} por R$${saleNum.toFixed(0)} — ${title}`
+    : saleNum
+    ? `R$${saleNum.toFixed(0)} — ${title}`
     : title;
 
-  const imageUrl = p.thumbnailImage ?? p.image ?? null;
+  const imageUrl  = p.thumbnailImage ?? p.image ?? null;
   const affiliateUrl = amazonLink(asin, p.url);
 
   return {
     store_id:       storeId,
     code:           "",
     description:    desc,
-    discount_type:  "percent" as const,
+    discount_type:  discountPct ? "percent" as const : "other" as const,
     discount_value: discountPct,
     affiliate_url:  affiliateUrl,
     external_id:    `amz-${asin}`,
@@ -99,6 +109,8 @@ function processProduct(p: ApifyProduct, storeId: string) {
     is_verified:    true,
     is_active:      true,
     expires_at:     null,
+    // usamos hasSale para log mas não filtramos — todo produto Amazon é válido
+    _hasSale:       hasSale,
   };
 }
 
@@ -181,9 +193,11 @@ async function saveProducts(items: ApifyProduct[]) {
 
   if (!store?.id) return NextResponse.json({ error: "Falha ao criar store Amazon" }, { status: 500 });
 
-  const coupons = items
-    .map(p => processProduct(p, store.id))
-    .filter((c): c is NonNullable<ReturnType<typeof processProduct>> => c !== null);
+  const processed = items.map(p => processProduct(p, store.id));
+  // Remove campos internos antes de salvar
+  const coupons = processed
+    .filter((c): c is NonNullable<ReturnType<typeof processProduct>> => c !== null)
+    .map(({ _hasSale: _, ...c }) => c);
 
   if (coupons.length === 0)
     return NextResponse.json({ ok: true, synced: 0, msg: `Nenhum produto com desconto ≥5% entre ${items.length} recebidos` });
