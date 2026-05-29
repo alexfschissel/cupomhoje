@@ -151,29 +151,44 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ── POST — Apify envia via webhook ────────────────────────────────────────────
+// ── POST — Apify webhook ou chamada manual com datasetId ─────────────────────
 export async function POST(req: NextRequest) {
   if (!okAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  try {
-    const body = await req.json();
-    // Webhook do Apify: { resource: { defaultDatasetId }, eventData }
-    // OU array direto de produtos
-    let items: ApifyProduct[] = [];
+  if (!APIFY_TOKEN)
+    return NextResponse.json({ error: "APIFY_TOKEN não configurado" }, { status: 500 });
 
-    if (Array.isArray(body)) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    let items: ApifyProduct[] = [];
+    let datasetId = "";
+
+    // Formato 1: { "datasetId": "xxx" } — chamada manual
+    if (body.datasetId) {
+      datasetId = body.datasetId;
+    }
+    // Formato 2: webhook Apify { "resource": { "defaultDatasetId": "xxx" } }
+    else if (body.resource?.defaultDatasetId) {
+      datasetId = body.resource.defaultDatasetId;
+    }
+    // Formato 3: array direto (legado)
+    else if (Array.isArray(body)) {
       items = body;
-    } else if (body.resource?.defaultDatasetId && APIFY_TOKEN) {
-      // Busca os itens do dataset via API
+    }
+
+    // Busca itens do Apify se tiver dataset ID
+    if (datasetId && items.length === 0) {
       const dsRes = await fetch(
-        `https://api.apify.com/v2/datasets/${body.resource.defaultDatasetId}/items?token=${APIFY_TOKEN}&format=json`,
+        `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_TOKEN}&clean=true`,
         { signal: AbortSignal.timeout(30000) }
       );
-      if (dsRes.ok) items = await dsRes.json();
+      if (!dsRes.ok)
+        return NextResponse.json({ error: `Apify dataset ${dsRes.status}` }, { status: 502 });
+      items = await dsRes.json();
     }
 
     if (items.length === 0)
-      return NextResponse.json({ ok: false, msg: "Nenhum produto recebido do Apify" });
+      return NextResponse.json({ ok: false, msg: "Nenhum produto recebido" });
 
     return await saveProducts(items);
 
