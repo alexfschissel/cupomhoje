@@ -9,114 +9,175 @@ function ok(req: NextRequest) {
   return secret === S || auth === `Bearer ${S}` || auth === `Bearer ${C}`;
 }
 
+function db() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+function toSlug(name: string, suffix: string) {
+  return name.toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+    + "-" + suffix;
+}
+
+// ── AWIN ─────────────────────────────────────────────────────────────────────
+async function syncAwin(supabase: ReturnType<typeof db>) {
+  const PID = process.env.AWIN_PUBLISHER_ID;
+  const TOK = process.env.AWIN_API_TOKEN;
+  if (!PID || !TOK) return { synced: 0, skipped: 0, error: "AWIN não configurado" };
+
+  // Sem filtro type=voucher — LG/Stanley/Arno/Evas têm apenas deals/cashback
+  const res = await fetch(
+    `https://api.awin.com/publishers/${PID}/promotions?relationship=joined`,
+    { headers: { Authorization: `Bearer ${TOK}` }, cache: "no-store" }
+  );
+
+  if (!res.ok) {
+    const detail = await res.text();
+    return { synced: 0, skipped: 0, error: `AWIN ${res.status}: ${detail}` };
+  }
+
+  const json = await res.json() as { promotions?: Record<string, unknown>[] };
+  const promos = json.promotions ?? [];
+  if (promos.length === 0) return { synced: 0, skipped: 0, error: "Nenhuma promoção AWIN disponível para anunciantes aprovados" };
+
+  let synced = 0, skipped = 0;
+
+  for (const p of promos.slice(0, 300)) {
+    const advertiserId   = String(p.advertiserId ?? "");
+    const advertiserName = String(p.advertiserName ?? "Loja");
+    const promoId        = String(p.promotionId ?? p.id ?? "");
+    if (!advertiserId || !promoId) { skipped++; continue; }
+
+    const { data: store } = await supabase
+      .from("stores")
+      .upsert({ slug: toSlug(advertiserName, `aw-${advertiserId}`), name: advertiserName, affiliate_id: advertiserId, affiliate_network: "awin", is_active: true }, { onConflict: "slug" })
+      .select("id").single();
+    if (!store?.id) { skipped++; continue; }
+
+    const rawType      = String(p.discountType ?? p.type ?? "").toLowerCase();
+    const discountType = rawType.includes("percent") ? "percent" : rawType.includes("cash") || rawType.includes("fixed") ? "fixed" : rawType.includes("ship") ? "free_shipping" : "other";
+    const discountValue = (p.discountAmount as { amount?: number } | null)?.amount ?? null;
+    const advertUrl     = String(p.advertiserUrl ?? "");
+    const affiliateUrl  = `https://www.awin1.com/cread.php?awinmid=${advertiserId}&awinaffid=${PID}&p=${encodeURIComponent(advertUrl)}`;
+
+    const { error } = await supabase.from("coupons").upsert({
+      store_id: store.id, code: String(p.code ?? ""),
+      description: String(p.description ?? p.displayTitle ?? p.title ?? "Promoção"),
+      discount_type: discountType, discount_value: discountValue,
+      affiliate_url: affiliateUrl, external_id: `awin-${promoId}`,
+      is_verified: true, is_active: true,
+      expires_at: p.endDate ? new Date(String(p.endDate)).toISOString() : null,
+    }, { onConflict: "external_id" });
+
+    error ? skipped++ : synced++;
+  }
+
+  return { synced, skipped };
+}
+
+// ── LOMADEE ───────────────────────────────────────────────────────────────────
+async function syncLomadee(supabase: ReturnType<typeof db>) {
+  const TOKEN = process.env.LOMADEE_APP_TOKEN;
+  if (!TOKEN) return { synced: 0, skipped: 0, error: "LOMADEE_APP_TOKEN não configurado" };
+
+  const res = await fetch(
+    `https://api.lomadee.com/v3/${TOKEN}/coupon/_all?sourceId=cupomhoje&token=${TOKEN}`,
+    { cache: "no-store" }
+  );
+
+  if (!res.ok) return { synced: 0, skipped: 0, error: `Lomadee ${res.status}` };
+
+  const json = await res.json() as { coupons?: Record<string, unknown>[] };
+  const coupons = json.coupons ?? [];
+  if (coupons.length === 0) return { synced: 0, skipped: 0, error: "Nenhum cupom Lomadee retornado" };
+
+  let synced = 0, skipped = 0;
+
+  for (const c of coupons.slice(0, 500)) {
+    const store    = c.store as Record<string, unknown> | null;
+    const storeId  = String(store?.id ?? "");
+    const storeName = String(store?.name ?? "Loja");
+    const couponId  = String(c.id ?? "");
+    if (!storeId || !couponId) { skipped++; continue; }
+
+    const { data: storeRow } = await supabase
+      .from("stores")
+      .upsert({
+        slug: toSlug(storeName, `lm-${storeId}`),
+        name: storeName,
+        logo_url: String(store?.thumbnail ?? ""),
+        website_url: String(store?.link ?? ""),
+        affiliate_id: storeId,
+        affiliate_network: "lomadee",
+        is_active: true,
+      }, { onConflict: "slug" })
+      .select("id").single();
+    if (!storeRow?.id) { skipped++; continue; }
+
+    const desc = String(c.description ?? "").toUpperCase();
+    const discountType =
+      desc.includes("%")                          ? "percent"      :
+      desc.includes("FRETE GRÁTIS") || desc.includes("FRETE GRATIS") ? "free_shipping" :
+      desc.includes("R$")                         ? "fixed"        : "other";
+    const discountValue =
+      discountType === "percent" ? parseFloat(desc.match(/(\d+)%/)?.[1] ?? "0") :
+      discountType === "fixed"   ? parseFloat(desc.match(/R\$\s?(\d+)/)?.[1] ?? "0") : null;
+
+    const { error } = await supabase.from("coupons").upsert({
+      store_id: storeRow.id,
+      code: String(c.code ?? ""),
+      description: String(c.description ?? "Cupom Lomadee"),
+      discount_type: discountType,
+      discount_value: discountValue,
+      affiliate_url: String(c.link ?? ""),
+      external_id: `lm-${couponId}`,
+      is_verified: true,
+      is_active: true,
+      expires_at: c.vigency ? new Date(String(c.vigency)).toISOString() : null,
+    }, { onConflict: "external_id" });
+
+    error ? skipped++ : synced++;
+  }
+
+  return { synced, skipped };
+}
+
+// ── HANDLER ───────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   if (!ok(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Valida todas as env vars antes de qualquer chamada
   const missing: string[] = [];
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL)   missing.push("NEXT_PUBLIC_SUPABASE_URL");
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY)  missing.push("SUPABASE_SERVICE_ROLE_KEY");
-  if (!process.env.AWIN_PUBLISHER_ID)          missing.push("AWIN_PUBLISHER_ID");
-  if (!process.env.AWIN_API_TOKEN)             missing.push("AWIN_API_TOKEN");
-
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL)  missing.push("NEXT_PUBLIC_SUPABASE_URL");
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
   if (missing.length > 0)
     return NextResponse.json({ error: "Variáveis faltando no Vercel", missing }, { status: 500 });
 
   try {
-    // 1. Chama a API do AWIN
-    // regionCode=BR não é suportado pela API AWIN — removido
-    const awinUrl = `https://api.awin.com/publishers/${process.env.AWIN_PUBLISHER_ID}/promotions?type=voucher&relationship=joined`;
+    const supabase = db();
 
-    const res = await fetch(awinUrl, {
-      headers: { Authorization: `Bearer ${process.env.AWIN_API_TOKEN}` },
-      cache: "no-store",
-    });
+    const [awin, lomadee] = await Promise.allSettled([
+      syncAwin(supabase),
+      syncLomadee(supabase),
+    ]);
 
-    if (!res.ok) {
-      const detail = await res.text();
-      return NextResponse.json({ error: `AWIN retornou ${res.status}`, detail }, { status: 502 });
-    }
-
-    const json = await res.json() as { promotions?: Record<string, unknown>[] };
-    const promos = json.promotions ?? [];
-
-    if (promos.length === 0)
-      return NextResponse.json({ ok: true, synced: 0, msg: "AWIN não retornou promoções. Verifique se está aprovado em algum anunciante BR." });
-
-    // 2. Conecta ao Supabase
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    let synced = 0;
-    let skipped = 0;
-
-    for (const p of promos.slice(0, 300)) {
-      const advertiserId   = String(p.advertiserId   ?? "");
-      const advertiserName = String(p.advertiserName ?? "Loja");
-      const promoId        = String(p.promotionId ?? p.id ?? "");
-
-      if (!advertiserId || !promoId) { skipped++; continue; }
-
-      const slug =
-        advertiserName
-          .toLowerCase()
-          .normalize("NFD").replace(/[̀-ͯ]/g, "")
-          .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") +
-        "-aw-" + advertiserId;
-
-      const { data: store } = await supabase
-        .from("stores")
-        .upsert(
-          { slug, name: advertiserName, affiliate_id: advertiserId, affiliate_network: "awin", is_active: true },
-          { onConflict: "slug" }
-        )
-        .select("id")
-        .single();
-
-      if (!store?.id) { skipped++; continue; }
-
-      const rawType = String(p.discountType ?? p.type ?? "").toLowerCase();
-      const discountType =
-        rawType.includes("percent")                     ? "percent"      :
-        rawType.includes("cash") || rawType.includes("fixed") ? "fixed"  :
-        rawType.includes("ship")                        ? "free_shipping" : "other";
-
-      const discountValue = (p.discountAmount as { amount?: number } | null)?.amount ?? null;
-      const advertUrl     = String(p.advertiserUrl ?? "");
-      const affiliateUrl  = `https://www.awin1.com/cread.php?awinmid=${advertiserId}&awinaffid=${process.env.AWIN_PUBLISHER_ID}&p=${encodeURIComponent(advertUrl)}`;
-
-      const { error } = await supabase.from("coupons").upsert(
-        {
-          store_id:       store.id,
-          code:           String(p.code ?? ""),
-          description:    String(p.description ?? p.displayTitle ?? p.title ?? "Promoção"),
-          discount_type:  discountType,
-          discount_value: discountValue,
-          affiliate_url:  affiliateUrl,
-          external_id:    `awin-${promoId}`,
-          is_verified:    true,
-          is_active:      true,
-          expires_at:     p.endDate ? new Date(String(p.endDate)).toISOString() : null,
-        },
-        { onConflict: "external_id" }
-      );
-
-      if (error) { skipped++; } else { synced++; }
-    }
-
-    // 3. Desativa cupons expirados
-    await supabase
-      .from("coupons")
+    // Desativa cupons expirados
+    await supabase.from("coupons")
       .update({ is_active: false })
       .lt("expires_at", new Date().toISOString())
       .eq("is_active", true);
 
-    return NextResponse.json({ ok: true, total: promos.length, synced, skipped, ts: new Date().toISOString() });
+    return NextResponse.json({
+      ok: true,
+      awin:    awin.status    === "fulfilled" ? awin.value    : { error: String(awin.reason)    },
+      lomadee: lomadee.status === "fulfilled" ? lomadee.value : { error: String(lomadee.reason) },
+      ts: new Date().toISOString(),
+    });
 
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }
