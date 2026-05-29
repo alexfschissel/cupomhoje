@@ -29,40 +29,50 @@ const LOMADEE_SOURCE_ID = process.env.LOMADEE_SOURCE_ID ?? "cupomhoje";
 
 /**
  * Busca produtos com desconto do Lomadee
- * Usa endpoint de produtos: GET /v1/products
+ * API Docs: https://docs.lomadee.com.br/api-reference/introduction
  */
 async function fetchLomadeeProducts(page: number = 1): Promise<Record<string, unknown>[]> {
   try {
     console.log(`[Lomadee] Buscando página ${page}...`);
 
-    // API de produtos do Lomadee
-    // Sort: -discount (maior desconto primeiro)
-    const url = new URL("https://api.lomadee.com.br/v1/products");
-    url.searchParams.set("apiKey", LOMADEE_API_KEY);
-    url.searchParams.set("sourceId", LOMADEE_SOURCE_ID);
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("limit", "100");
-    url.searchParams.set("sort", "-discount");
+    // Endpoint correto do Lomadee
+    // POST /v2/products/search
+    const url = "https://api.lomadee.com.br/v2/products/search";
 
-    const res = await fetch(url.toString(), {
+    const body = {
+      apiKey: LOMADEE_API_KEY,
+      sourceId: LOMADEE_SOURCE_ID,
+      page: page,
+      limit: 100,
+      sort: "-discount"
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
       signal: AbortSignal.timeout(15000),
-      headers: { "User-Agent": "CupomHoje/1.0" }
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "CupomHoje/1.0"
+      },
+      body: JSON.stringify(body)
     });
 
+    console.log(`[Lomadee] Status: ${res.status}`);
+    const text = await res.text();
+
     if (!res.ok) {
-      const err = await res.text();
-      console.error(`[Lomadee] ${res.status}: ${err.substring(0, 200)}`);
+      console.error(`[Lomadee] ${res.status}: ${text.substring(0, 300)}`);
       return [];
     }
 
-    const json = await res.json() as Record<string, unknown>;
-    const products = (json["products"] as Record<string, unknown>[]) ?? [];
-    console.log(`[Lomadee] Página ${page}: ${products.length} produtos`);
+    const json = JSON.parse(text) as Record<string, unknown>;
+    const data = (json["data"] as Record<string, unknown>[]) ?? (json["products"] as Record<string, unknown>[]) ?? [];
+    console.log(`[Lomadee] Página ${page}: ${data.length} produtos`);
 
     // Filtra só produtos com desconto
-    return products.filter(p => {
-      const discount = (p["discount"] as number) ?? 0;
-      const price = (p["price"] as number) ?? 0;
+    return data.filter(p => {
+      const discount = (p["discount"] as number) ?? (p["discountPercentage"] as number) ?? 0;
+      const price = (p["price"] as number) ?? (p["salePrice"] as number) ?? 0;
       return price > 0 && discount > 0;
     });
   } catch (e) {
