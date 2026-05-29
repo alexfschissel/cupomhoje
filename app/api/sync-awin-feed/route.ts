@@ -89,7 +89,8 @@ export async function POST(req: NextRequest) {
     const coupons: Record<string, unknown>[] = [];
 
     // Processa linha por linha
-    for (const row of parseCSVLines(csv)) {
+    const rows = Array.from(parseCSVLines(csv));
+    for (const row of rows) {
       processed++;
 
       // A cada 100 linhas loga progresso

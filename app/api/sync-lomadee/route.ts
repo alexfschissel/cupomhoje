@@ -87,9 +87,8 @@ export async function GET(req: NextRequest) {
       // Estrutura do produto conforme API v2 Lomadee
       const productId = (product["id"] as string) ?? "";
       const name = (product["name"] as string)?.slice(0, 120) ?? "";
-      const url = (product["url"] as string) ?? "";
+      const productUrl = (product["url"] as string) ?? "";
       const organizationId = (product["organizationId"] as string) ?? "";
-      const description = (product["description"] as string)?.slice(0, 150) ?? "";
 
       // Tenta extrair primeira imagem
       const images = (product["images"] as { url?: string }[]) ?? [];
@@ -113,7 +112,7 @@ export async function GET(req: NextRequest) {
       const available = product["available"] as boolean;
       if (available === false) continue;
 
-      if (!productId || !name || !url) continue;
+      if (!productId || !name || !productUrl) continue;
 
       // Calcula desconto se houver
       let discountPct: number | null = null;
@@ -152,7 +151,7 @@ export async function GET(req: NextRequest) {
         description: desc,
         discount_type: discountPct ? "percent" : "other",
         discount_value: discountPct,
-        affiliate_url: url,
+        affiliate_url: productUrl,
         external_id: `lomadee-${productId}`,
         image_url: imageUrl,
         is_verified: true,

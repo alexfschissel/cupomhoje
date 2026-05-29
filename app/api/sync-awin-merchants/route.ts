@@ -92,13 +92,12 @@ export async function GET(req: NextRequest) {
       // Processa produtos
       const coupons: Record<string, unknown>[] = [];
       for (const prod of products) {
-        const merchantName = prod["merchant_name"] ?? merchant.name;
-        const productName  = prod["product_name"] ?? "";
-        const deepLink     = prod["aw_deep_link"] ?? "";
-        const searchPrice  = parseFloat(prod["search_price"] as string ?? "0");
-        const rrpPrice     = parseFloat(prod["rrp_price"] as string ?? "0");
-        const savingsPct   = parseFloat(prod["savings_percent"] as string ?? "0");
-        const imageUrl     = prod["aw_image_url"] ?? "";
+        const productName  = String(prod["product_name"] ?? "");
+        const deepLink     = String(prod["aw_deep_link"] ?? "");
+        const searchPrice  = parseFloat(String(prod["search_price"] ?? "0"));
+        const rrpPrice     = parseFloat(String(prod["rrp_price"] ?? "0"));
+        const savingsPct   = parseFloat(String(prod["savings_percent"] ?? "0"));
+        const imageUrl     = String(prod["aw_image_url"] ?? "");
 
         if (!productName || !deepLink) continue;
 

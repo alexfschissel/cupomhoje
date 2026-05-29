@@ -26,6 +26,7 @@ type Coupon = {
   expires_at: string | null;
   store_name: string;
   image_url: string | null;
+  last_posted_at: string | null;
 };
 
 const SEP = "━━━━━━━━━━━━━━━━";
