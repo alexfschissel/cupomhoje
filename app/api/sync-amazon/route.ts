@@ -210,14 +210,15 @@ async function saveProducts(items: ApifyProduct[]) {
     if (!error) synced += Math.min(20, coupons.length - i);
   }
 
-  // Desativa produtos Amazon expirados (mais de 7 dias sem atualização)
+  // Desativa produtos Amazon com mais de 7 dias (usa created_at como proxy)
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 7);
   await supabase
     .from("coupons")
     .update({ is_active: false })
     .like("external_id", "amz-%")
-    .lt("updated_at", cutoff.toISOString());
+    .lt("created_at", cutoff.toISOString())
+    .neq("is_active", false); // só atualiza os que estão ativos
 
   return NextResponse.json({
     ok: true,
