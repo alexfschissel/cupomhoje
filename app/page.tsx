@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     url: "https://cupomhoje.vercel.app",
     siteName: "CupomHoje",
     type: "website",
-    images: [{ url: "/logo.svg", width: 500, height: 500, alt: "CupomHoje" }],
+    images: [{ url: "/logo.png", width: 500, height: 500, alt: "CupomHoje" }],
     locale: "pt_BR",
   },
   twitter: {
@@ -150,7 +150,7 @@ export default function Page() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.svg" alt="CupomHoje" width={34} height={34} className="rounded-xl object-cover" />
+            <img src="/logo.png" alt="CupomHoje" width={34} height={34} className="rounded-xl object-cover" />
             <span className="font-black text-base tracking-tight">CupomHoje</span>
           </div>
           <div className="flex items-center gap-2">
@@ -330,7 +330,7 @@ export default function Page() {
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.svg" alt="CupomHoje" width={28} height={28} className="rounded-lg object-cover opacity-60" />
+            <img src="/logo.png" alt="CupomHoje" width={28} height={28} className="rounded-lg object-cover opacity-60" />
             <span className="font-bold text-sm text-white/30">CupomHoje</span>
           </div>
           <p className="text-white/15 text-xs text-center">
