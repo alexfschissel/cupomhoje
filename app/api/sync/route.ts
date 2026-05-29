@@ -92,7 +92,7 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
 
     if (!aliStore?.id) return { synced: 0, skipped: 0, error: "Falha ao criar loja AliExpress" };
 
-    let synced = 0, skipped = 0;
+    let synced = 0, skipped = 0, firstError = "";
 
     for (const p of products) {
       const productId   = String(p.product_id ?? "");
@@ -131,10 +131,11 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
         expires_at:     null,
       }, { onConflict: "external_id" });
 
-      error ? skipped++ : synced++;
+      if (error) { skipped++; firstError = firstError || error.message; }
+      else { synced++; }
     }
 
-    return { synced, skipped };
+    return { synced, skipped, ...(firstError ? { upsert_error: firstError } : {}) };
 
   } catch (e) {
     return { synced: 0, skipped: 0, error: `AliExpress erro: ${String(e)}` };
