@@ -56,6 +56,7 @@ type ApifyProduct = {
   reviewsCount?: number | null;
   inStock?: boolean;
   categoryPageData?: { saleSummary?: string };
+  breadCrumbs?: string;
 };
 
 function parsePrice(raw: unknown): number | null {
@@ -69,11 +70,50 @@ function parsePrice(raw: unknown): number | null {
   return n > 0 ? n : null;
 }
 
+// Filtra produtos por categoria — remove Livros, eBooks, Adesivos de desconto, etc
+function isValidProductCategory(breadCrumbs?: string, title?: string): boolean {
+  if (!breadCrumbs || !title) return true; // sem categoria = aceita
+
+  const bc = breadCrumbs.toLowerCase();
+  const t = title.toLowerCase();
+
+  // BLOQUEAR: Livros, eBooks, Adesivos de desconto (não são cupons)
+  const blockedCategories = [
+    "livros",
+    "ebook",
+    "literatura",
+    "ficcção",
+    "adesivos",
+    "etiqueta",
+    "desconto",  // "1000 adesivos com 60% de desconto"
+    "liquidação",
+    "cupom",
+    "cartões", // "Cartões de desconto de fidelidade"
+  ];
+
+  // Se a categoria contém palavras bloqueadas, rejeita
+  if (blockedCategories.some(word => bc.includes(word))) {
+    return false;
+  }
+
+  // Bloqueador adicional por título (ex: "adesivo com desconto")
+  if (blockedCategories.some(word => t.includes(word))) {
+    return false;
+  }
+
+  return true;
+}
+
 function processProduct(p: ApifyProduct, storeId: string) {
   const asin  = p.asin ?? "";
   const title = (p.title ?? "").slice(0, 150);
   if (!asin || !title) return null;
   if (p.inStock === false) return null;
+
+  // Filtra por categoria — remove Livros, Adesivos, etc
+  if (!isValidProductCategory(p.breadCrumbs, p.title)) {
+    return null;
+  }
 
   const saleNum = parsePrice(p.price);
   const origNum = parsePrice(p.listPrice);

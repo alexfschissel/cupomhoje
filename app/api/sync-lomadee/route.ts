@@ -1,7 +1,11 @@
 /**
  * GET /api/sync-lomadee
- * Sincroniza cupons do Lomadee via API pública
- * API Key: fFmWad3OVvCgFi3um7YZfjQ6u1sQ4ImI
+ * Sincroniza produtos do Lomadee via API v2 (new endpoint)
+ *
+ * Endpoint: https://api-beta.lomadee.com.br/affiliate/products
+ * Header: x-api-key: LOMADEE_API_TOKEN
+ *
+ * ⚠️ IMPORTANTE: Você precisa atualizar LOMADEE_API_TOKEN com sua chave da nova API
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -22,34 +26,41 @@ function db() {
   );
 }
 
-const LOMADEE_API_KEY = "fFmWad3OVvCgFi3um7YZfjQ6u1sQ4ImI";
+// Chave API v2 do Lomadee (novo endpoint beta)
+const LOMADEE_API_TOKEN = process.env.LOMADEE_API_TOKEN ?? "";
 
 async function fetchLomaDeeCoupons(): Promise<Record<string, unknown>[]> {
   try {
-    // Endpoint da API Lomadee
-    const url = `https://api.lomadee.com.br/v1/coupons?apiKey=${LOMADEE_API_KEY}&limit=100&orderBy=-discount`;
+    if (!LOMADEE_API_TOKEN) {
+      console.error("[Lomadee] LOMADEE_API_TOKEN não configurado!");
+      return [];
+    }
 
-    console.log("[Lomadee] Buscando cupons...");
+    // Novo endpoint: API v2 Beta — busca 100 produtos por vez
+    const url = "https://api-beta.lomadee.com.br/affiliate/products?limit=100&page=1";
+
+    console.log("[Lomadee] Buscando produtos via API v2...");
     const res = await fetch(url, {
       signal: AbortSignal.timeout(15000),
-      headers: { "User-Agent": "CupomHoje/1.0" }
+      headers: {
+        "x-api-key": LOMADEE_API_TOKEN,
+        "User-Agent": "CupomHoje/1.0"
+      }
     });
 
     if (!res.ok) {
-      console.error(`[Lomadee] ${res.status}: ${await res.text().then(t => t.substring(0, 100))}`);
+      console.error(`[Lomadee] ${res.status}: ${await res.text().then(t => t.substring(0, 200))}`);
       return [];
     }
 
     const json = await res.json() as Record<string, unknown>;
-    const coupons = (json["coupons"] as Record<string, unknown>[]) ??
-                    (json["data"] as Record<string, unknown>[]) ??
-                    (Array.isArray(json) ? json : []);
+    const products = (json["data"] as Record<string, unknown>[]) ?? [];
 
-    console.log(`[Lomadee] Encontrados ${coupons.length} cupons`);
-    return coupons;
+    console.log(`[Lomadee] Encontrados ${products.length} produtos`);
+    return products;
 
   } catch (e) {
-    console.error("[Lomadee]", String(e));
+    console.error("[Lomadee] Erro:", String(e));
     return [];
   }
 }
@@ -72,20 +83,52 @@ export async function GET(req: NextRequest) {
     let synced = 0;
     const stores = new Set<string>();
 
-    for (const coupon of coupons) {
-      const id    = (coupon["id"] as string) ?? "";
-      const title = (coupon["title"] as string)?.slice(0, 120) ?? "";
-      const url   = (coupon["url"] as string) ?? "";
-      const store = (coupon["store"] as string) ?? "Lomadee";
-      const desc  = (coupon["description"] as string)?.slice(0, 150) ?? "";
+    for (const product of coupons) {
+      // Estrutura do produto conforme API v2 Lomadee
+      const productId = (product["id"] as string) ?? "";
+      const name = (product["name"] as string)?.slice(0, 120) ?? "";
+      const url = (product["url"] as string) ?? "";
+      const organizationId = (product["organizationId"] as string) ?? "";
+      const description = (product["description"] as string)?.slice(0, 150) ?? "";
 
-      if (!id || !title || !url) continue;
+      // Tenta extrair primeira imagem
+      const images = (product["images"] as { url?: string }[]) ?? [];
+      const imageUrl = images.length > 0 ? images[0].url : null;
+
+      // Tenta extrair preço da primeira opção/variante
+      // ⚠️ Lomadee API v2 retorna preços já em REAIS (não centavos)
+      let priceOriginal = 0;
+      let priceCurrent = 0;
+      const options = (product["options"] as Record<string, unknown>[]) ?? [];
+      if (options.length > 0) {
+        const opt = options[0];
+        const pricing = (opt["pricing"] as { listPrice?: number; price?: number }[]) ?? [];
+        if (pricing.length > 0) {
+          priceOriginal = pricing[0].listPrice ?? 0;
+          priceCurrent = pricing[0].price ?? 0;
+        }
+      }
+
+      // Verifica disponibilidade
+      const available = product["available"] as boolean;
+      if (available === false) continue;
+
+      if (!productId || !name || !url) continue;
+
+      // Calcula desconto se houver
+      let discountPct: number | null = null;
+      if (priceOriginal > 0 && priceCurrent > 0 && priceOriginal > priceCurrent) {
+        discountPct = Math.round(((priceOriginal - priceCurrent) / priceOriginal) * 100);
+      }
+
+      // Nome da loja (tenta extrair do organizationId ou usa padrão)
+      const storeName = "Lomadee Partners";
 
       const { data: s } = await supabase
         .from("stores")
         .upsert({
-          slug: `lomadee-${store.toLowerCase().replace(/\s+/g, "-")}`,
-          name: store,
+          slug: `lomadee-${organizationId.slice(0, 8).toLowerCase()}`,
+          name: storeName,
           website_url: "https://www.lomadee.com.br",
           affiliate_network: "lomadee",
           is_active: true
@@ -94,16 +137,24 @@ export async function GET(req: NextRequest) {
         .single();
 
       if (!s?.id) continue;
-      stores.add(store);
+      stores.add(storeName);
+
+      // Monta descrição com preço
+      const desc = priceOriginal > 0 && priceCurrent > 0 && priceOriginal > priceCurrent
+        ? `De R$${Math.round(priceOriginal)} por R$${Math.round(priceCurrent)} — ${name}`
+        : priceCurrent > 0
+        ? `R$${Math.round(priceCurrent)} — ${name}`
+        : name;
 
       const { error } = await supabase.from("coupons").upsert({
         store_id: s.id,
-        code: title,
+        code: "",
         description: desc,
-        discount_type: "other",
-        discount_value: null,
+        discount_type: discountPct ? "percent" : "other",
+        discount_value: discountPct,
         affiliate_url: url,
-        external_id: `lomadee-${id}`,
+        external_id: `lomadee-${productId}`,
+        image_url: imageUrl,
         is_verified: true,
         is_active: true,
         expires_at: null,
