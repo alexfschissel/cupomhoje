@@ -100,21 +100,25 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
       const discountStr = String(p.discount ?? "").replace("%", "");
       const discount    = parseFloat(discountStr) || null;
 
-      // Preços
+      // Preços — ignora valores 0 ou inválidos
       const saleRaw  = String(p.target_sale_price     ?? "").replace(/[^\d.]/g, "");
       const origRaw  = String(p.target_original_price ?? "").replace(/[^\d.]/g, "");
-      const salePrice = parseFloat(saleRaw) || null;
-      const origPrice = parseFloat(origRaw) || null;
+      const salePrice = parseFloat(saleRaw) > 0 ? parseFloat(saleRaw) : null;
+      const origPrice = parseFloat(origRaw) > 0 ? parseFloat(origRaw) : null;
 
       if (!productId) { skipped++; continue; }
 
-      // Usa promotion_link, product_detail_url ou constrói o link com o product_id
+      // Imagem
+      const imageUrl = String(p.product_main_image_url ?? "").trim() || null;
+
+      // Link de afiliado
       const promoLink =
         String(p.promotion_link     ?? "").trim() ||
         String(p.product_detail_url ?? "").trim() ||
         `https://pt.aliexpress.com/item/${productId}.html`;
 
-      const desc = origPrice && salePrice
+      // Descrição com preço real (só se ambos > 0 e original > sale)
+      const desc = origPrice && salePrice && origPrice > salePrice
         ? `De R$${origPrice.toFixed(0)} por R$${salePrice.toFixed(0)} — ${title}`
         : title;
 
@@ -126,6 +130,7 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
         discount_value: discount,
         affiliate_url:  promoLink,
         external_id:    `ali-${productId}`,
+        image_url:      imageUrl,
         is_verified:    true,
         is_active:      true,
         expires_at:     null,
