@@ -84,12 +84,21 @@ async function syncLomadee(supabase: ReturnType<typeof db>) {
   const TOKEN = process.env.LOMADEE_APP_TOKEN;
   if (!TOKEN) return { synced: 0, skipped: 0, error: "LOMADEE_APP_TOKEN não configurado" };
 
-  const res = await fetch(
-    `https://api.lomadee.com/v3/${TOKEN}/coupon/_all?sourceId=cupomhoje&token=${TOKEN}`,
-    { cache: "no-store" }
-  );
+  // Tenta URL sem sourceId primeiro
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://api.lomadee.com/v3/${TOKEN}/coupon/_all`,
+      { cache: "no-store", signal: AbortSignal.timeout(15000) }
+    );
+  } catch (fetchErr) {
+    return { synced: 0, skipped: 0, error: `Lomadee fetch falhou: ${String(fetchErr)}` };
+  }
 
-  if (!res.ok) return { synced: 0, skipped: 0, error: `Lomadee ${res.status}` };
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    return { synced: 0, skipped: 0, error: `Lomadee ${res.status}: ${detail.slice(0, 200)}` };
+  }
 
   const json = await res.json() as { coupons?: Record<string, unknown>[] };
   const coupons = json.coupons ?? [];
