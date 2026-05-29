@@ -28,55 +28,62 @@ const LOMADEE_API_KEY = process.env.LOMADEE_API_KEY ?? "fFmWad3OVvCgFi3um7YZfjQ6
 const LOMADEE_SOURCE_ID = process.env.LOMADEE_SOURCE_ID ?? "cupomhoje";
 
 /**
- * Busca produtos com desconto do Lomadee
- * API Docs: https://docs.lomadee.com.br/api-reference/introduction
+ * Busca cupons/produtos do Lomadee via API
+ * Base: https://beta.lomadee.com.br
+ * API Key: fFmWad3OVvCgFi3um7YZfjQ6u1sQ4ImI
  */
 async function fetchLomadeeProducts(page: number = 1): Promise<Record<string, unknown>[]> {
   try {
     console.log(`[Lomadee] Buscando página ${page}...`);
 
-    // Endpoint correto do Lomadee
-    // POST /v2/products/search
-    const url = "https://api.lomadee.com.br/v2/products/search";
+    // Tenta endpoint da API beta
+    const endpoints = [
+      `https://beta.lomadee.com.br/api/v1/products?apiKey=${LOMADEE_API_KEY}&page=${page}&limit=100`,
+      `https://api-beta.lomadee.com.br/v1/products?apiKey=${LOMADEE_API_KEY}&page=${page}&limit=100`,
+      `https://beta.lomadee.com.br/v1/products?apiKey=${LOMADEE_API_KEY}&page=${page}&limit=100`
+    ];
 
-    const body = {
-      apiKey: LOMADEE_API_KEY,
-      sourceId: LOMADEE_SOURCE_ID,
-      page: page,
-      limit: 100,
-      sort: "-discount"
-    };
+    for (const url of endpoints) {
+      console.log(`[Lomadee] Tentando: ${url.substring(0, 60)}...`);
 
-    const res = await fetch(url, {
-      method: "POST",
-      signal: AbortSignal.timeout(15000),
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": "CupomHoje/1.0"
-      },
-      body: JSON.stringify(body)
-    });
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(10000),
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": "CupomHoje/1.0"
+        }
+      });
 
-    console.log(`[Lomadee] Status: ${res.status}`);
-    const text = await res.text();
+      console.log(`[Lomadee] ${url.substring(0, 60)}: ${res.status}`);
 
-    if (!res.ok) {
-      console.error(`[Lomadee] ${res.status}: ${text.substring(0, 300)}`);
-      return [];
+      if (res.ok) {
+        const text = await res.text();
+        const json = JSON.parse(text) as Record<string, unknown>;
+
+        // Tenta diferentes estruturas de resposta
+        let data = (json["data"] as Record<string, unknown>[]) ??
+                   (json["products"] as Record<string, unknown>[]) ??
+                   (json["items"] as Record<string, unknown>[]) ??
+                   (json["results"] as Record<string, unknown>[]) ??
+                   (Array.isArray(json) ? json : []);
+
+        console.log(`[Lomadee] Encontrados ${data.length} produtos`);
+
+        if (data.length > 0) {
+          return data.filter(p => {
+            const discount = (p["discount"] as number) ?? (p["discountPercentage"] as number) ?? 0;
+            const price = (p["price"] as number) ?? (p["salePrice"] as number) ?? 0;
+            return price > 0 && discount > 0;
+          });
+        }
+      }
     }
 
-    const json = JSON.parse(text) as Record<string, unknown>;
-    const data = (json["data"] as Record<string, unknown>[]) ?? (json["products"] as Record<string, unknown>[]) ?? [];
-    console.log(`[Lomadee] Página ${page}: ${data.length} produtos`);
+    console.log(`[Lomadee] Nenhum endpoint funcionou na página ${page}`);
+    return [];
 
-    // Filtra só produtos com desconto
-    return data.filter(p => {
-      const discount = (p["discount"] as number) ?? (p["discountPercentage"] as number) ?? 0;
-      const price = (p["price"] as number) ?? (p["salePrice"] as number) ?? 0;
-      return price > 0 && discount > 0;
-    });
   } catch (e) {
-    console.error(`[Lomadee] Erro na página ${page}:`, String(e));
+    console.error(`[Lomadee] Erro:`, String(e));
     return [];
   }
 }
