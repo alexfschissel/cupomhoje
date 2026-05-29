@@ -112,7 +112,9 @@ export async function GET(req: NextRequest) {
     const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "@cupomhojeoficial";
     const supabase = db();
 
-    // Busca produtos com desconto real nos últimos 2h não foram postados
+    // Busca produtos com desconto real
+    // Lojas grandes (AliExpress, Amazon, ML): pode repetir após 2h
+    // Lojas pequenas (Wise, Nubank): aguarda 6h
     const twoHoursAgo = new Date();
     twoHoursAgo.setHours(twoHoursAgo.getHours() - 2);
 
@@ -124,27 +126,68 @@ export async function GET(req: NextRequest) {
       .or(`last_posted_at.is.null,last_posted_at.lt.${twoHoursAgo.toISOString()}`) // Não postado ou postado há mais de 2h
       .limit(300);
 
+    // Filtra ainda mais lojas pequenas (6h mínimo)
+    const sixHoursAgo = new Date();
+    sixHoursAgo.setHours(sixHoursAgo.getHours() - 6);
+    const smallStores = ["Wise", "Nubank", "Kast", "Natura BR", "E-book Bitcoin"];
+
+    if (data && data.length > 0) {
+      // Remove produtos de lojas pequenas que foram postados há menos de 6h
+      const filtered = (data as Coupon[]).filter(c => {
+        if (!smallStores.some(s => c.store_name.includes(s))) return true; // Lojas grandes: ok
+        if (!c.last_posted_at) return true; // Nunca foi postado: ok
+        const lastPost = new Date(c.last_posted_at);
+        return lastPost < sixHoursAgo; // Postado há mais de 6h: ok
+      });
+      // Sobrescreve data com a lista filtrada
+      Object.assign(data, filtered);
+    }
+
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data || data.length === 0)
       return NextResponse.json({ ok: false, msg: "Nenhum cupom ativo. Rode /api/sync primeiro." });
 
-    // Round-robin por loja — garante variedade (Amazon, AliExpress, LG, etc.)
+    // Prioriza lojas com MUITOS produtos (AliExpress, Amazon, ML, AWIN)
+    // Reduz frequência de lojas genéricas (Wise, Nubank, Kast, etc)
+    const priorityStores = ["AliExpress", "Amazon", "Mercado Livre", "LG BR", "Stanley BR", "Arno BR"];
+    const lowPriorityStores = ["Wise", "Nubank", "Kast", "Natura BR", "E-book Bitcoin"];
+
+    const shuffled: Coupon[] = [];
     const byStore: Record<string, Coupon[]> = {};
+
+    // Agrupa por loja
     for (const c of data as Coupon[]) {
       if (!byStore[c.store_name]) byStore[c.store_name] = [];
       byStore[c.store_name].push(c);
     }
+
     // Embaralha dentro de cada loja
-    for (const k of Object.keys(byStore)) byStore[k].sort(() => Math.random() - 0.5);
-    // Round-robin: 1 de cada loja por rodada
-    const storeKeys = Object.keys(byStore).sort(() => Math.random() - 0.5);
-    const shuffled: Coupon[] = [];
+    for (const k of Object.keys(byStore)) {
+      byStore[k].sort(() => Math.random() - 0.5);
+    }
+
+    // Round-robin com pesos: lojas prioritárias aparecem 3x, normais 1x, baixas 0.3x
     let round = 0;
     while (shuffled.length < limit) {
       let added = 0;
-      for (const k of storeKeys) {
+      for (const k of Object.keys(byStore).sort(() => Math.random() - 0.5)) {
         if (shuffled.length >= limit) break;
-        if (byStore[k].length > round) { shuffled.push(byStore[k][round]); added++; }
+
+        let idx = round;
+        if (priorityStores.some(p => k.includes(p))) {
+          // Prioridade alta — tira 3 produtos por rodada
+          idx = Math.floor(round / 3);
+          if (round % 3 !== 0) continue;
+        } else if (lowPriorityStores.some(l => k.includes(l))) {
+          // Prioridade baixa — tira 1 a cada 3 rodadas
+          if (round % 3 !== 0) continue;
+          idx = Math.floor(round / 3);
+        }
+
+        if (byStore[k].length > idx) {
+          shuffled.push(byStore[k][idx]);
+          added++;
+        }
       }
       if (added === 0) break;
       round++;
