@@ -97,7 +97,6 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
     for (const p of products) {
       const productId   = String(p.product_id ?? "");
       const title       = String(p.product_title ?? "").slice(0, 150);
-      const promoLink   = String(p.promotion_link ?? "");
       const discountStr = String(p.discount ?? "").replace("%", "");
       const discount    = parseFloat(discountStr) || null;
 
@@ -107,7 +106,13 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
       const salePrice = parseFloat(saleRaw) || null;
       const origPrice = parseFloat(origRaw) || null;
 
-      if (!productId || !promoLink) { skipped++; continue; }
+      if (!productId) { skipped++; continue; }
+
+      // Usa promotion_link, product_detail_url ou constrói o link com o product_id
+      const promoLink =
+        String(p.promotion_link     ?? "").trim() ||
+        String(p.product_detail_url ?? "").trim() ||
+        `https://www.aliexpress.com/item/${productId}.html`;
 
       const desc = origPrice && salePrice
         ? `De R$${origPrice.toFixed(0)} por R$${salePrice.toFixed(0)} — ${title}`
