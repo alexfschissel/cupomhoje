@@ -82,6 +82,8 @@ export async function GET(req: NextRequest) {
     const C_MERC  = col("merchant_name");
     const C_IMG   = col("merchant_image_url");
 
+    console.log("Colunas encontradas:", { C_LINK, C_NAME, C_PRICE, C_RRP, C_DISC, C_STOCK, C_IMG });
+
     // Debug: mostra o header e a primeira linha para entender a estrutura
     const debug = req.nextUrl.searchParams.get("debug") === "1";
     if (debug) {
@@ -130,14 +132,17 @@ export async function GET(req: NextRequest) {
         ? `De R$${rrp.toFixed(0)} por R$${price.toFixed(0)} — ${name}`
         : name;
 
+      const imageUrl = f[C_IMG]?.startsWith("http") ? f[C_IMG] : null;
+
       const { error } = await supabase.from("coupons").upsert({
         store_id:       storeRow.id,
         code:           "",
         description:    desc,
         discount_type:  disc && disc > 0 ? "percent" : "other",
-        discount_value: disc,
+        discount_value: disc && disc > 0 ? disc : null,
         affiliate_url:  link,
         external_id:    `awin-feed-${productId}`,
+        image_url:      imageUrl,
         is_verified:    true,
         is_active:      true,
         expires_at:     null,
