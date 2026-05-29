@@ -102,31 +102,34 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
   if (!APP_KEY || !APP_SECRET)
     return { synced: 0, skipped: 0, error: "ALIEXPRESS_APP_KEY ou ALIEXPRESS_APP_SECRET não configurados" };
 
-  // Palavras-chave configuráveis via env var (separadas por vírgula)
-  const rawKeywords = process.env.ALIEXPRESS_KEYWORDS
-    ?? "kaido house miniature,mini gt diecast,hot wheels diecast,tomica car,matchbox diecast,kyosho mini car,1:64 scale diecast,miniature car model,diecast car collection,hobby car miniature";
-  const keywords = rawKeywords.split(",").map(k => k.trim()).filter(Boolean);
+  // Palavras-chave opcionais via env var — se vazio, busca produtos em alta no geral
+  const rawKeywords = process.env.ALIEXPRESS_KEYWORDS ?? "";
+  const keywords    = rawKeywords.split(",").map(k => k.trim()).filter(Boolean);
 
   try {
-    // Busca cada keyword em paralelo
-    const results = await Promise.allSettled(
-      keywords.map(kw => fetchAliExpressKeyword(kw, APP_KEY, APP_SECRET, TRACKING))
-    );
-
-    // Combina e deduplica por product_id
+    let products: Record<string, unknown>[] = [];
     const seen = new Set<string>();
-    const products: Record<string, unknown>[] = [];
-    for (const r of results) {
-      if (r.status === "fulfilled") {
-        for (const p of r.value) {
-          const id = String(p.product_id ?? "");
-          if (id && !seen.has(id)) { seen.add(id); products.push(p); }
+
+    if (keywords.length > 0) {
+      // Busca por palavras-chave específicas em paralelo
+      const results = await Promise.allSettled(
+        keywords.map(kw => fetchAliExpressKeyword(kw, APP_KEY, APP_SECRET, TRACKING))
+      );
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          for (const p of r.value) {
+            const id = String(p.product_id ?? "");
+            if (id && !seen.has(id)) { seen.add(id); products.push(p); }
+          }
         }
       }
+    } else {
+      // Sem keywords → produtos em alta no geral (Advanced API sem filtro)
+      products = await fetchAliExpressKeyword("", APP_KEY, APP_SECRET, TRACKING);
     }
 
     if (products.length === 0)
-      return { synced: 0, skipped: 0, keywords, error: "Nenhum produto encontrado para as palavras-chave" };
+      return { synced: 0, skipped: 0, error: "Nenhum produto encontrado no AliExpress" };
 
     // Garante que a loja AliExpress existe
     const { data: aliStore } = await supabase
