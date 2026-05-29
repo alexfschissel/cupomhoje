@@ -47,14 +47,16 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
     const timestamp = Date.now().toString();
     const params: Record<string, string> = {
       app_key:         APP_KEY,
-      method:          "aliexpress.affiliate.hotproduct.query",
+      method:          "aliexpress.affiliate.product.query",  // Standard API (Active)
       sign_method:     "md5",
       timestamp,
       v:               "2.0",
+      fields:          "product_id,product_title,target_sale_price,target_original_price,discount,promotion_link,product_main_image_url",
       page_no:         "1",
       page_size:       "20",
       target_currency: "BRL",
       target_language: "PT",
+      sort:            "SALE_PRICE_ASC",
     };
     if (TRACKING) params.tracking_id = TRACKING;
     params.sign = signAliExpress(params, APP_SECRET);
@@ -74,7 +76,8 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
     const json = await res.json() as Record<string, unknown>;
 
     // Navega na estrutura da resposta
-    const resp = json["aliexpress_affiliate_hotproduct_query_response"] as Record<string, unknown> | undefined;
+    // Tenta ambos os formatos de resposta (hotproduct e product.query)
+    const resp = (json["aliexpress_affiliate_hotproduct_query_response"] ?? json["aliexpress_affiliate_product_query_response"]) as Record<string, unknown> | undefined;
     const result = (resp?.resp_result as Record<string, unknown> | undefined)?.result as Record<string, unknown> | undefined;
     const products = (result?.products as Record<string, unknown> | undefined)?.product as Record<string, unknown>[] | undefined;
 
