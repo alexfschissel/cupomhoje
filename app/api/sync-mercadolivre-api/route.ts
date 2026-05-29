@@ -37,19 +37,26 @@ function buildAffiliateLink(itemId: string): string {
 
 /**
  * Busca produtos com desconto via API pública do ML
- * Queries de exemplo: "ofertas", "desconto", "promoção", "imperdível"
+ * Queries de exemplo: "ofertas", "desconto", "promoção"
  */
 async function searchMLProducts(query: string): Promise<Record<string, unknown>[]> {
   try {
-    const res = await fetch(
-      `https://api.mercadolivre.com/sites/MLB/search?q=${encodeURIComponent(query)}&sort=price_asc&limit=50`,
-      { signal: AbortSignal.timeout(10000) }
-    );
+    const url = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(query)}&sort=price_asc&limit=50`;
+    console.log(`[ML] Buscando: ${url}`);
 
-    if (!res.ok) return [];
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(10000),
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
+
+    if (!res.ok) {
+      console.error(`[ML] ${res.status}: ${await res.text().then(t => t.substring(0, 200))}`);
+      return [];
+    }
 
     const json = await res.json() as Record<string, unknown>;
     const results = (json["results"] as Record<string, unknown>[]) ?? [];
+    console.log(`[ML] "${query}": encontrados ${results.length} produtos`);
 
     return results.filter(item => {
       const original = (item["original_price"] as number) ?? 0;
@@ -58,7 +65,7 @@ async function searchMLProducts(query: string): Promise<Record<string, unknown>[
       return original > 0 && price > 0 && original > price && ((original - price) / original) >= 0.05;
     });
   } catch (e) {
-    console.error(`[ML Search] Erro em "${query}":`, e);
+    console.error(`[ML Search] Erro em "${query}":`, String(e));
     return [];
   }
 }
