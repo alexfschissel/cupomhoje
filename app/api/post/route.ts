@@ -147,14 +147,13 @@ export async function GET(req: NextRequest) {
     const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "@cupomhojeoficial";
     const supabase = db();
 
-    // Busca produtos COM desconto OU cupom OU da AliExpress (miniatures têm preço mas % variável)
+    // Busca TODOS os produtos ativos — prioriza os com desconto, mas inclui todos
     const { data, error } = await supabase
       .from("coupons_with_store")
       .select("id, code, description, discount_type, discount_value, affiliate_url, expires_at, store_name, image_url")
       .eq("is_active", true)
-      .or("discount_value.gt.0,code.neq.,store_name.eq.AliExpress")
       .order("discount_value", { ascending: false, nullsFirst: false })
-      .limit(50);
+      .limit(100);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data || data.length === 0)
