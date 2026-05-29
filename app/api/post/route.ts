@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
   if (missing.length > 0)
     return NextResponse.json({ error: "Variáveis faltando", missing }, { status: 500 });
 
-  const limit = Math.min(parseInt(req.nextUrl.searchParams.get("limit") ?? "5"), 10);
+  const limit = Math.min(parseInt(req.nextUrl.searchParams.get("limit") ?? "5"), 50);
 
   try {
     const TOKEN   = process.env.TELEGRAM_BOT_TOKEN!;
