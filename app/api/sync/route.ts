@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
 
   try {
     // 1. Chama a API do AWIN
-    const awinUrl = `https://api.awin.com/publishers/${process.env.AWIN_PUBLISHER_ID}/promotions?type=voucher&regionCode=BR&relationship=joined`;
+    // regionCode=BR não é suportado pela API AWIN — removido
+    const awinUrl = `https://api.awin.com/publishers/${process.env.AWIN_PUBLISHER_ID}/promotions?type=voucher&relationship=joined`;
 
     const res = await fetch(awinUrl, {
       headers: { Authorization: `Bearer ${process.env.AWIN_API_TOKEN}` },

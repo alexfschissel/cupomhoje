@@ -75,15 +75,22 @@ export async function GET(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const { data, error } = await supabase
-      .from("coupons_with_store")
-      .select("id, code, description, discount_type, discount_value, affiliate_url, expires_at, store_name")
-      .eq("is_active", true)
-      .order("discount_value", { ascending: false })
-      .order("created_at",     { ascending: false })
-      .limit(3);
+    let data, error;
+    try {
+      const result = await supabase
+        .from("coupons_with_store")
+        .select("id, code, description, discount_type, discount_value, affiliate_url, expires_at, store_name")
+        .eq("is_active", true)
+        .order("discount_value", { ascending: false })
+        .order("created_at",     { ascending: false })
+        .limit(3);
+      data  = result.data;
+      error = result.error;
+    } catch (e) {
+      return NextResponse.json({ error: "Supabase fetch falhou", detail: String(e) }, { status: 500 });
+    }
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ error: "Supabase error", detail: error.message }, { status: 500 });
     if (!data || data.length === 0)
       return NextResponse.json({ ok: false, msg: "Nenhum cupom ativo. Rode /api/sync primeiro." });
 
