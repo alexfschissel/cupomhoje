@@ -82,15 +82,24 @@ export async function GET(req: NextRequest) {
     const C_MERC  = col("merchant_name");
     const C_IMG   = col("merchant_image_url");
 
-    // 4. Filtra: apenas em estoque e com desconto > 0, ordena por maior desconto
+    // Debug: mostra o header e a primeira linha para entender a estrutura
+    const debug = req.nextUrl.searchParams.get("debug") === "1";
+    if (debug) {
+      const sample = parseCSVLine(allLines[1] ?? "");
+      const map: Record<string, string> = {};
+      headers.forEach((h, i) => { map[h] = sample[i] ?? ""; });
+      return NextResponse.json({ headers, sample: map, total_rows: allLines.length - 1 });
+    }
+
+    // 4. Pega os primeiros MAX produtos que tenham link e nome
     const rows = allLines.slice(1)
       .map(l => parseCSVLine(l))
-      .filter(f => f[C_STOCK] === "1" && parseFloat(f[C_DISC] ?? "0") > 0)
+      .filter(f => f[C_LINK]?.startsWith("http") && f[C_NAME]?.length > 0)
       .sort((a, b) => parseFloat(b[C_DISC] ?? "0") - parseFloat(a[C_DISC] ?? "0"))
       .slice(0, MAX);
 
     if (rows.length === 0)
-      return NextResponse.json({ ok: true, synced: 0, msg: "Nenhum produto em estoque com desconto encontrado" });
+      return NextResponse.json({ ok: true, synced: 0, msg: "Nenhum produto com link encontrado no feed" });
 
     // 5. Identifica o anunciante (loja)
     const merchantName = rows[0][C_MERC] ?? "LG BR";
