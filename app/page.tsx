@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+
+export const dynamic = "force-static";
 
 export const metadata: Metadata = {
   title: "CupomHoje — Cupons grátis no Telegram",
@@ -114,7 +115,8 @@ export default function Page() {
       <nav className="border-b border-white/[0.06] px-5 py-3 sticky top-0 bg-[#0A0A0A]/95 backdrop-blur z-50">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="CupomHoje" width={36} height={36} className="rounded-xl" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="CupomHoje" width={36} height={36} className="rounded-xl object-cover" />
             <span className="font-black text-base tracking-tight">CupomHoje</span>
           </div>
           <a
@@ -209,18 +211,16 @@ export default function Page() {
               rel="noopener noreferrer sponsored"
               className="group bg-white/[0.04] border border-white/[0.07] rounded-2xl p-4 flex flex-col items-center text-center hover:bg-white/[0.08] hover:border-white/15 transition-all"
             >
-              {/* Logo */}
-              <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center mb-3 overflow-hidden shadow-sm">
+              {/* Logo com fallback em letras */}
+              <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center mb-3 overflow-hidden shadow-sm relative">
+                <span className="absolute font-black text-gray-400 text-base select-none">
+                  {loja.nome.slice(0, 2).toUpperCase()}
+                </span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={loja.logo}
                   alt={loja.nome}
-                  className="w-10 h-10 object-contain"
-                  onError={(e) => {
-                    const t = e.currentTarget;
-                    t.style.display = "none";
-                    t.parentElement!.innerHTML = `<span style="font-weight:900;font-size:18px;color:#333">${loja.nome.slice(0, 2).toUpperCase()}</span>`;
-                  }}
+                  className="w-10 h-10 object-contain relative z-10"
                 />
               </div>
 
@@ -264,7 +264,8 @@ export default function Page() {
 
           <div className="bg-[#17212B] rounded-2xl overflow-hidden border border-white/[0.06] shadow-2xl">
             <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]">
-              <Image src="/logo.png" alt="CupomHoje" width={36} height={36} className="rounded-full" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="CupomHoje" width={36} height={36} className="rounded-full object-cover" />
               <div>
                 <p className="text-white font-semibold text-sm">CupomHoje</p>
                 <p className="text-white/35 text-xs">canal · cupons verificados</p>
@@ -312,7 +313,8 @@ export default function Page() {
       <footer className="border-t border-white/[0.06] px-5 py-7">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="CupomHoje" width={24} height={24} className="rounded-md opacity-50" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="CupomHoje" width={24} height={24} className="rounded-md opacity-50 object-cover" />
             <span className="font-bold text-sm text-white/30">CupomHoje</span>
           </div>
           <p className="text-white/15 text-xs text-center">
