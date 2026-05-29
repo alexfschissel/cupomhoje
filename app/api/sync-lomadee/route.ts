@@ -1,8 +1,6 @@
 /**
  * GET /api/sync-lomadee
- * Sincroniza produtos do Lomadee (afiliados brasileiros)
- * API: https://docs.lomadee.com.br/api-reference/introduction
- *
+ * Sincroniza cupons do Lomadee via API pública
  * API Key: fFmWad3OVvCgFi3um7YZfjQ6u1sQ4ImI
  */
 
@@ -24,66 +22,34 @@ function db() {
   );
 }
 
-const LOMADEE_API_KEY = process.env.LOMADEE_API_KEY ?? "fFmWad3OVvCgFi3um7YZfjQ6u1sQ4ImI";
-const LOMADEE_SOURCE_ID = process.env.LOMADEE_SOURCE_ID ?? "cupomhoje";
+const LOMADEE_API_KEY = "fFmWad3OVvCgFi3um7YZfjQ6u1sQ4ImI";
 
-/**
- * Busca cupons/produtos do Lomadee via API
- * Base: https://beta.lomadee.com.br
- * API Key: fFmWad3OVvCgFi3um7YZfjQ6u1sQ4ImI
- */
-async function fetchLomadeeProducts(page: number = 1): Promise<Record<string, unknown>[]> {
+async function fetchLomaDeeCoupons(): Promise<Record<string, unknown>[]> {
   try {
-    console.log(`[Lomadee] Buscando página ${page}...`);
+    // Endpoint da API Lomadee
+    const url = `https://api.lomadee.com.br/v1/coupons?apiKey=${LOMADEE_API_KEY}&limit=100&orderBy=-discount`;
 
-    // Tenta endpoint da API beta
-    const endpoints = [
-      `https://beta.lomadee.com.br/api/v1/products?apiKey=${LOMADEE_API_KEY}&page=${page}&limit=100`,
-      `https://api-beta.lomadee.com.br/v1/products?apiKey=${LOMADEE_API_KEY}&page=${page}&limit=100`,
-      `https://beta.lomadee.com.br/v1/products?apiKey=${LOMADEE_API_KEY}&page=${page}&limit=100`
-    ];
+    console.log("[Lomadee] Buscando cupons...");
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(15000),
+      headers: { "User-Agent": "CupomHoje/1.0" }
+    });
 
-    for (const url of endpoints) {
-      console.log(`[Lomadee] Tentando: ${url.substring(0, 60)}...`);
-
-      const res = await fetch(url, {
-        signal: AbortSignal.timeout(10000),
-        headers: {
-          "Accept": "application/json",
-          "User-Agent": "CupomHoje/1.0"
-        }
-      });
-
-      console.log(`[Lomadee] ${url.substring(0, 60)}: ${res.status}`);
-
-      if (res.ok) {
-        const text = await res.text();
-        const json = JSON.parse(text) as Record<string, unknown>;
-
-        // Tenta diferentes estruturas de resposta
-        let data = (json["data"] as Record<string, unknown>[]) ??
-                   (json["products"] as Record<string, unknown>[]) ??
-                   (json["items"] as Record<string, unknown>[]) ??
-                   (json["results"] as Record<string, unknown>[]) ??
-                   (Array.isArray(json) ? json : []);
-
-        console.log(`[Lomadee] Encontrados ${data.length} produtos`);
-
-        if (data.length > 0) {
-          return data.filter(p => {
-            const discount = (p["discount"] as number) ?? (p["discountPercentage"] as number) ?? 0;
-            const price = (p["price"] as number) ?? (p["salePrice"] as number) ?? 0;
-            return price > 0 && discount > 0;
-          });
-        }
-      }
+    if (!res.ok) {
+      console.error(`[Lomadee] ${res.status}: ${await res.text().then(t => t.substring(0, 100))}`);
+      return [];
     }
 
-    console.log(`[Lomadee] Nenhum endpoint funcionou na página ${page}`);
-    return [];
+    const json = await res.json() as Record<string, unknown>;
+    const coupons = (json["coupons"] as Record<string, unknown>[]) ??
+                    (json["data"] as Record<string, unknown>[]) ??
+                    (Array.isArray(json) ? json : []);
+
+    console.log(`[Lomadee] Encontrados ${coupons.length} cupons`);
+    return coupons;
 
   } catch (e) {
-    console.error(`[Lomadee] Erro:`, String(e));
+    console.error("[Lomadee]", String(e));
     return [];
   }
 }
@@ -92,81 +58,69 @@ export async function GET(req: NextRequest) {
   if (!okAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    console.log("[Lomadee] Iniciando sincronização...");
-
     const supabase = db();
-    let totalProducts = 0;
-    let totalSynced = 0;
-    const merchantIds: Set<string> = new Set();
+    const coupons = await fetchLomaDeeCoupons();
 
-    // Busca as 3 primeiras páginas (até 300 produtos)
-    for (let page = 1; page <= 3; page++) {
-      const products = await fetchLomadeeProducts(page);
-      if (products.length === 0) break;
+    if (coupons.length === 0) {
+      return NextResponse.json({
+        ok: false,
+        msg: "Nenhum cupom encontrado",
+        ts: new Date().toISOString(),
+      });
+    }
 
-      totalProducts += products.length;
+    let synced = 0;
+    const stores = new Set<string>();
 
-      for (const prod of products) {
-        const productId = (prod["id"] as string) ?? "";
-        const name      = (prod["name"] as string)?.slice(0, 120) ?? "";
-        const price     = (prod["price"] as number) ?? 0;
-        const original  = (prod["originalPrice"] as number) ?? 0;
-        const discount  = (prod["discount"] as number) ?? 0;
-        const image     = (prod["image"] as string) ?? "";
-        const url       = (prod["url"] as string) ?? "";
-        const storeName = (prod["storeName"] as string) ?? "Lomadee";
+    for (const coupon of coupons) {
+      const id    = (coupon["id"] as string) ?? "";
+      const title = (coupon["title"] as string)?.slice(0, 120) ?? "";
+      const url   = (coupon["url"] as string) ?? "";
+      const store = (coupon["store"] as string) ?? "Lomadee";
+      const desc  = (coupon["description"] as string)?.slice(0, 150) ?? "";
 
-        if (!productId || !name || !price || !url) continue;
+      if (!id || !title || !url) continue;
 
-        // Garante que a store existe
-        const storeSlug = `lomadee-${storeName.toLowerCase().replace(/\s+/g, "-")}`;
-        const { data: store } = await supabase
-          .from("stores")
-          .upsert({
-            slug: storeSlug,
-            name: storeName,
-            website_url: "https://www.lomadee.com.br",
-            affiliate_network: "lomadee",
-            is_active: true
-          }, { onConflict: "slug" })
-          .select("id")
-          .single();
+      const { data: s } = await supabase
+        .from("stores")
+        .upsert({
+          slug: `lomadee-${store.toLowerCase().replace(/\s+/g, "-")}`,
+          name: store,
+          website_url: "https://www.lomadee.com.br",
+          affiliate_network: "lomadee",
+          is_active: true
+        }, { onConflict: "slug" })
+        .select("id")
+        .single();
 
-        if (!store?.id) continue;
-        merchantIds.add(store.id);
+      if (!s?.id) continue;
+      stores.add(store);
 
-        const desc = original > 0
-          ? `De R$${Math.round(original)} por R$${Math.round(price)} — ${name}`
-          : `R$${Math.round(price)} — ${name}`;
+      const { error } = await supabase.from("coupons").upsert({
+        store_id: s.id,
+        code: title,
+        description: desc,
+        discount_type: "other",
+        discount_value: null,
+        affiliate_url: url,
+        external_id: `lomadee-${id}`,
+        is_verified: true,
+        is_active: true,
+        expires_at: null,
+      }, { onConflict: "external_id" });
 
-        const { error } = await supabase.from("coupons").upsert({
-          store_id:       store.id,
-          code:           "",
-          description:    desc,
-          discount_type:  "percent",
-          discount_value: Math.round(discount),
-          affiliate_url:  url,
-          external_id:    `lomadee-${productId}`,
-          image_url:      image,
-          is_verified:    true,
-          is_active:      true,
-          expires_at:     null,
-        }, { onConflict: "external_id" });
-
-        if (!error) totalSynced++;
-      }
+      if (!error) synced++;
     }
 
     return NextResponse.json({
       ok: true,
-      total_found: totalProducts,
-      total_synced: totalSynced,
-      unique_stores: merchantIds.size,
+      total: coupons.length,
+      synced,
+      stores: stores.size,
       ts: new Date().toISOString(),
     });
 
   } catch (e) {
-    console.error("[Lomadee Sync Error]", e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }
