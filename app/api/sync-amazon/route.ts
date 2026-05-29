@@ -186,16 +186,20 @@ export async function GET(req: NextRequest) {
 
   try {
     // 1. Dispara o actor Apify e aguarda resultado
+    // ⚠️ ECONOMIA: maxItems reduzido para 10 (cabe no free $5/mês)
     const runRes = await fetch(
       `https://api.apify.com/v2/acts/${APIFY_ACTOR_ID}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=120`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // Configuração do actor Amazon Deals Scraper
+          // Configuração otimizada para FREE TIER ($5/mês)
           country: "BR",
-          maxItems: 50,
-          // O actor lê sua configuração salva no Apify Console
+          maxItems: 10,           // reduzido de 50 → 10 por run
+          maxItemsPerStartUrl: 5, // máx 5 por categoria
+          useCaptchaSolver: false, // 🚫 OFF — economia ~70%
+          scrapeProductDetails: false,
+          scrapeSellers: false,
         }),
         signal: AbortSignal.timeout(130000),
       }
