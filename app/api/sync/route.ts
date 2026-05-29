@@ -85,9 +85,8 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
     return { synced: 0, skipped: 0, error: "ALIEXPRESS_APP_KEY ou ALIEXPRESS_APP_SECRET não configurados" };
 
   // Palavras-chave configuráveis via env var (separadas por vírgula)
-  // Padrão: miniatures de carros — Kaido House, Mini GT, Hot Wheels
   const rawKeywords = process.env.ALIEXPRESS_KEYWORDS
-    ?? "kaido house miniature,mini gt diecast car,hot wheels diecast,miniature car 1:64";
+    ?? "kaido house miniature,mini gt diecast,hot wheels diecast,tomica car,matchbox diecast,kyosho mini car,1:64 scale diecast,miniature car model,diecast car collection,hobby car miniature";
   const keywords = rawKeywords.split(",").map(k => k.trim()).filter(Boolean);
 
   try {
