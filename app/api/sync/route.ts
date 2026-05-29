@@ -112,7 +112,7 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
       const promoLink =
         String(p.promotion_link     ?? "").trim() ||
         String(p.product_detail_url ?? "").trim() ||
-        `https://www.aliexpress.com/item/${productId}.html`;
+        `https://pt.aliexpress.com/item/${productId}.html`;
 
       const desc = origPrice && salePrice
         ? `De R$${origPrice.toFixed(0)} por R$${salePrice.toFixed(0)} — ${title}`
