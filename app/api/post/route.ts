@@ -34,9 +34,9 @@ function safeUrl(url: string) {
   return url.replace(/&/g, "&amp;");
 }
 
-// ── Formata mensagem — padrão premium (imagem 4) ──────────────────────────────
+// ── Formata mensagem — padrão clean premium ───────────────────────────────────
 function format(c: Coupon): string {
-  const store = c.store_name.toUpperCase();
+  const store = c.store_name;
   const desc  = c.description.trim();
   const lines: string[] = [];
 
@@ -45,42 +45,33 @@ function format(c: Coupon): string {
   const origNum = priceMatch ? parseFloat(priceMatch[1].replace(",", ".")) : 0;
   const saleNum = priceMatch ? parseFloat(priceMatch[2].replace(",", ".")) : 0;
 
-  const productName = priceMatch ? priceMatch[3] : desc;
-  const discountPct = c.discount_value && c.discount_value > 0 ? Math.round(c.discount_value) : null;
+  const productName = priceMatch ? priceMatch[3].slice(0, 80) : desc.slice(0, 80);
+  const discountPct = c.discount_value && c.discount_value > 0 ? Math.round(c.discount_value) : 0;
 
   // CTA baseado na loja
-  const cta =
-    store.includes("ALIEXPRESS") ? "COMPRAR NO ALIEXPRESS" :
-    store.includes("AMAZON")     ? "COMPRAR NA AMAZON"     :
-    store.includes("MERCADO")    ? "COMPRAR NO ML"         :
-    store.includes("LG")         ? "COMPRAR NA LG"         :
-    store.includes("STANLEY")    ? "COMPRAR NA STANLEY"    :
-    c.code                       ? "COMPRAR AGORA"         :
-                                   "ACESSAR AGORA";
+  const cta = `COMPRAR NA ${store.toUpperCase()}`;
 
-  // Layout premium (padrão imagem 4)
-  lines.push(`📦 ${store}`);
-
-  if (discountPct) {
+  // Layout limpo e profissional (padrão da imagem)
+  if (discountPct > 0) {
     lines.push(`🏷 <b>${discountPct}% OFF</b>`);
   }
 
   if (origNum > 0 && saleNum > 0 && origNum > saleNum) {
-    lines.push(`De <s>R$${Math.round(origNum)}</s> por <b>R$${Math.round(saleNum)}</b>`);
-  } else if (saleNum > 0) {
-    lines.push(`<b>R$${Math.round(saleNum)}</b>`);
+    lines.push(`💲 De R$${Math.round(origNum)} Por R$${Math.round(saleNum)}`);
   }
 
-  lines.push(`${productName.slice(0, 100)}`);
+  lines.push(`🛒 ${productName}`);
 
   if (c.code) {
-    lines.push(`\n💳 Cupom: <code>${c.code}</code>`);
+    lines.push(`☝️ Use o Cupom: <code>${c.code}</code>`);
   } else {
     lines.push(`✅ Desconto automático`);
   }
 
-  lines.push(`\n<a href="${safeUrl(c.affiliate_url)}">${cta}</a>`);
-  lines.push(`@cupomhojeoficial`);
+  lines.push("");
+  lines.push(`🛒 <a href="${safeUrl(c.affiliate_url)}">${cta}</a>`);
+  lines.push(SEP);
+  lines.push("📲 @cupomhojeoficial");
 
   return lines.join("\n");
 }
