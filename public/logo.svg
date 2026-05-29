@@ -1,0 +1,19 @@
+<svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="500" y2="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF7340"/>
+      <stop offset="100%" stop-color="#D93000"/>
+    </linearGradient>
+  </defs>
+  <rect width="500" height="500" rx="100" fill="url(#bg)"/>
+  <ellipse cx="420" cy="70" rx="130" ry="90" fill="white" fill-opacity="0.07" transform="rotate(-20 420 70)"/>
+  <g transform="translate(250, 195)">
+    <path d="M -112,-72 L 62,-72 Q 72,-72 72,-62 L 112,0 L 72,62 Q 72,72 62,72 L -112,72 Q -125,72 -125,58 L -125,-58 Q -125,-72 -112,-72 Z" fill="white"/>
+    <circle cx="-100" cy="0" r="15" fill="#FF5A1F"/>
+    <text x="12" y="22" text-anchor="middle" font-family="Arial Black,Impact,sans-serif" font-weight="900" font-size="72" fill="#FF5A1F">%</text>
+  </g>
+  <line x1="60" y1="318" x2="440" y2="318" stroke="white" stroke-width="2" stroke-dasharray="10,7" stroke-opacity="0.30"/>
+  <text x="36" y="325" text-anchor="middle" fill="white" fill-opacity="0.30" font-family="Arial" font-size="22">✂</text>
+  <text x="250" y="378" text-anchor="middle" fill="white" font-family="Arial Black,Impact,sans-serif" font-weight="900" font-size="58" letter-spacing="4">CUPOM</text>
+  <text x="252" y="428" text-anchor="middle" fill="white" fill-opacity="0.82" font-family="Arial,Helvetica,sans-serif" font-weight="300" font-size="28" letter-spacing="14">HOJE</text>
+</svg>

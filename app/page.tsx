@@ -3,29 +3,31 @@ import type { Metadata } from "next";
 export const dynamic = "force-static";
 
 export const metadata: Metadata = {
-  title: "CupomHoje — Canal de Cupons e Descontos no Telegram",
+  title: "CupomHoje — Cupons e Descontos: Amazon, AliExpress, Shein, Shopee, Mercado Livre e mais",
   description:
-    "Receba cupons exclusivos de AliExpress, Amazon, LG, Stanley e +20 lojas direto no Telegram. Economize todo dia. 100% grátis, sem spam, sem cadastro.",
+    "Receba cupons e descontos de Amazon, AliExpress, Shein, Shopee, Mercado Livre e centenas de lojas direto no Telegram. Ofertas a cada 15 minutos. 100% grátis, sem spam.",
   keywords: [
-    "cupons desconto telegram", "cupom hoje", "descontos aliexpress",
-    "cupom amazon brasil", "canal cupons telegram", "promoções online brasil",
-    "cupons grátis", "descontos telegram canal",
+    "cupons desconto telegram", "cupom hoje", "descontos aliexpress brasil",
+    "cupom amazon", "cupom shein", "cupom shopee", "cupom mercado livre",
+    "canal cupons telegram", "promoções online brasil", "descontos telegram",
+    "ofertas aliexpress", "cupons grátis", "desconto amazon brasil",
+    "canal telegram descontos", "melhores cupons brasil",
   ],
   authors: [{ name: "CupomHoje" }],
   openGraph: {
-    title: "CupomHoje — Cupons e Descontos todo dia no Telegram",
+    title: "CupomHoje — Cupons e Descontos de Amazon, AliExpress, Shein e mais no Telegram",
     description:
-      "Entre no canal e receba os melhores cupons verificados das maiores lojas do Brasil. Grátis, sem spam.",
+      "Entre no canal e receba cupons e descontos de centenas de lojas. Amazon, AliExpress, Shein, Shopee, Mercado Livre e muito mais. Ofertas a cada 15 min. Grátis.",
     url: "https://cupomhoje.vercel.app",
     siteName: "CupomHoje",
     type: "website",
-    images: [{ url: "/logo.png", width: 1024, height: 1024, alt: "CupomHoje" }],
+    images: [{ url: "/logo.svg", width: 500, height: 500, alt: "CupomHoje" }],
     locale: "pt_BR",
   },
   twitter: {
     card: "summary_large_image",
-    title: "CupomHoje — Cupons no Telegram",
-    description: "Cupons verificados das maiores lojas do Brasil, todo dia no seu Telegram.",
+    title: "CupomHoje — Cupons e Descontos no Telegram",
+    description: "Cupons e descontos de Amazon, AliExpress, Shein, Shopee e mais. A cada 15 minutos no Telegram.",
   },
   robots: { index: true, follow: true },
 };
@@ -148,7 +150,7 @@ export default function Page() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="CupomHoje" width={34} height={34} className="rounded-xl object-cover" />
+            <img src="/logo.svg" alt="CupomHoje" width={34} height={34} className="rounded-xl object-cover" />
             <span className="font-black text-base tracking-tight">CupomHoje</span>
           </div>
           <div className="flex items-center gap-2">
@@ -180,18 +182,20 @@ export default function Page() {
               {/* Badge */}
               <div className="inline-flex items-center gap-2 bg-[#229ED9]/10 border border-[#229ED9]/25 text-[#229ED9] rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest mb-6">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#229ED9] animate-pulse" />
-                Canal oficial • Telegram
+                Canal oficial • Telegram • Grátis
               </div>
 
               <h1 className="font-black text-4xl sm:text-5xl lg:text-6xl leading-[1.05] mb-5">
-                Economize em<br />
-                toda compra com<br />
-                <span className="text-[#FF5A1F]">cupons no Telegram</span>
+                Cupons e descontos<br />
+                de <span className="text-[#FF5A1F]">Amazon, Shein,<br />AliExpress</span> e mais
               </h1>
 
-              <p className="text-white/50 text-lg mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed">
-                Cupons verificados de +20 lojas chegam automaticamente no seu Telegram.
-                Com preço original, desconto e link direto. Grátis, sem spam.
+              <p className="text-white/50 text-lg mb-3 max-w-lg mx-auto lg:mx-0 leading-relaxed">
+                Receba ofertas de centenas de lojas direto no Telegram — com % de desconto,
+                preço original vs atual e link direto. Sem spam, sem cadastro.
+              </p>
+              <p className="text-white/30 text-sm mb-8 max-w-lg mx-auto lg:mx-0">
+                🔔 Novas ofertas a cada <strong className="text-white/50">15 minutos</strong> — Shopee, Mercado Livre, AliExpress e muito mais
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-10">
@@ -208,9 +212,9 @@ export default function Page() {
               {/* Stats */}
               <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto lg:mx-0 pt-8 border-t border-white/[0.07]">
                 {[
-                  { v: "2 posts", l: "por dia no canal" },
-                  { v: "100%",    l: "gratuito" },
-                  { v: "20+",     l: "lojas parceiras" },
+                  { v: "15 min", l: "nova oferta" },
+                  { v: "100%",   l: "gratuito" },
+                  { v: "100+",   l: "melhores lojas" },
                 ].map(({ v, l }) => (
                   <div key={l} className="text-center lg:text-left">
                     <div className="font-black text-xl text-[#FF5A1F]">{v}</div>
@@ -234,9 +238,8 @@ export default function Page() {
         <div className="max-w-6xl mx-auto">
           <div className="flex items-end justify-between mb-8">
             <div>
-              <p className="text-[#FF5A1F] text-xs font-bold uppercase tracking-widest mb-1">Afiliados verificados</p>
               <h2 className="font-black text-2xl sm:text-3xl">Lojas com descontos</h2>
-              <p className="text-white/35 text-sm mt-1">Clique e acesse com seu link de afiliado rastreado</p>
+              <p className="text-white/35 text-sm mt-1">Amazon, AliExpress, Shein, Shopee, Mercado Livre e muito mais</p>
             </div>
             <a href={CANAL} target="_blank" rel="noopener noreferrer"
                className="text-[#FF5A1F] text-sm font-semibold hover:underline hidden sm:block shrink-0">
@@ -304,7 +307,8 @@ export default function Page() {
               <span className="text-[#229ED9]">em breve no canal</span>
             </h2>
             <p className="text-white/40 mb-8 leading-relaxed">
-              Não perca as ofertas. Entre agora e economize nas suas próximas compras.
+              A cada 15 minutos uma nova oferta chega no canal — Amazon, AliExpress, Shein,
+              Shopee, Mercado Livre e centenas de lojas. Entre agora e não perca nenhuma.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <a href={CANAL} target="_blank" rel="noopener noreferrer"
@@ -326,7 +330,7 @@ export default function Page() {
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="CupomHoje" width={28} height={28} className="rounded-lg object-cover opacity-60" />
+            <img src="/logo.svg" alt="CupomHoje" width={28} height={28} className="rounded-lg object-cover opacity-60" />
             <span className="font-bold text-sm text-white/30">CupomHoje</span>
           </div>
           <p className="text-white/15 text-xs text-center">
