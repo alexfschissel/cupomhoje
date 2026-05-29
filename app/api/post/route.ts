@@ -156,13 +156,35 @@ export async function GET(req: NextRequest) {
     const fourHoursAgo = new Date();
     fourHoursAgo.setHours(fourHoursAgo.getHours() - 4);
 
-    const { data, error } = await supabase
-      .from("coupons_with_store")
-      .select("id, code, description, discount_type, discount_value, affiliate_url, expires_at, store_name, image_url, last_posted_at")
+    // Busca direto da tabela coupons com JOIN em stores (view não tem last_posted_at)
+    const { data: rawData, error } = await supabase
+      .from("coupons")
+      .select(`
+        id, code, description, discount_type, discount_value,
+        affiliate_url, expires_at, image_url, last_posted_at,
+        stores ( name )
+      `)
       .eq("is_active", true)
-      .gt("discount_value", 0) // Só produtos com desconto > 0
-      .or(`last_posted_at.is.null,last_posted_at.lt.${fourHoursAgo.toISOString()}`) // Não postado ou postado há mais de 4h
+      .gt("discount_value", 0)
+      .or(`last_posted_at.is.null,last_posted_at.lt.${fourHoursAgo.toISOString()}`)
       .limit(300);
+
+    // Achata a estrutura: stores.name → store_name
+    type RawCoupon = Omit<Coupon, "store_name"> & { stores?: { name?: string } | null };
+    const data: Coupon[] | null = rawData
+      ? (rawData as RawCoupon[]).map(r => ({
+          id: r.id,
+          code: r.code,
+          description: r.description,
+          discount_type: r.discount_type,
+          discount_value: r.discount_value,
+          affiliate_url: r.affiliate_url,
+          expires_at: r.expires_at,
+          image_url: r.image_url,
+          last_posted_at: r.last_posted_at,
+          store_name: r.stores?.name ?? "Loja",
+        }))
+      : null;
 
     // Filtra ainda mais lojas pequenas (12h mínimo)
     const twelveHoursAgo = new Date();
