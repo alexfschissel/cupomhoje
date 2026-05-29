@@ -34,7 +34,48 @@ function signAliExpress(params: Record<string, string>, secret: string): string 
   return createHash("md5").update(str).digest("hex").toUpperCase();
 }
 
-// ── AliExpress ────────────────────────────────────────────────────────────────
+// ── AliExpress — busca por keyword ────────────────────────────────────────────
+async function fetchAliExpressKeyword(
+  keyword: string,
+  APP_KEY: string,
+  APP_SECRET: string,
+  TRACKING: string,
+): Promise<Record<string, unknown>[]> {
+  const timestamp = Date.now().toString();
+  const params: Record<string, string> = {
+    app_key:         APP_KEY,
+    method:          "aliexpress.affiliate.hotproduct.query", // Advanced API (aprovada)
+    sign_method:     "md5",
+    timestamp,
+    v:               "2.0",
+    keywords:        keyword,
+    page_no:         "1",
+    page_size:       "20",
+    target_currency: "BRL",
+    target_language: "PT",
+    sort:            "LAST_VOLUME_DESC", // mais vendidos com desconto
+  };
+  if (TRACKING) params.tracking_id = TRACKING;
+  params.sign = signAliExpress(params, APP_SECRET);
+
+  const res = await fetch("https://api-sg.aliexpress.com/sync", {
+    method:  "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body:    new URLSearchParams(params).toString(),
+    signal:  AbortSignal.timeout(15000),
+  });
+
+  if (!res.ok) return [];
+
+  const json = await res.json() as Record<string, unknown>;
+  const resp    = (json["aliexpress_affiliate_hotproduct_query_response"]
+                ?? json["aliexpress_affiliate_product_query_response"]) as Record<string, unknown> | undefined;
+  const result  = (resp?.resp_result as Record<string, unknown> | undefined)?.result as Record<string, unknown> | undefined;
+  const list    = (result?.products as Record<string, unknown> | undefined)?.product;
+  return Array.isArray(list) ? list : [];
+}
+
+// ── AliExpress sync principal ─────────────────────────────────────────────────
 async function syncAliExpress(supabase: ReturnType<typeof db>) {
   const APP_KEY    = process.env.ALIEXPRESS_APP_KEY;
   const APP_SECRET = process.env.ALIEXPRESS_APP_SECRET;
@@ -43,46 +84,32 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
   if (!APP_KEY || !APP_SECRET)
     return { synced: 0, skipped: 0, error: "ALIEXPRESS_APP_KEY ou ALIEXPRESS_APP_SECRET não configurados" };
 
+  // Palavras-chave configuráveis via env var (separadas por vírgula)
+  // Padrão: miniatures de carros — Kaido House, Mini GT, Hot Wheels
+  const rawKeywords = process.env.ALIEXPRESS_KEYWORDS
+    ?? "kaido house miniature,mini gt diecast car,hot wheels diecast,miniature car 1:64";
+  const keywords = rawKeywords.split(",").map(k => k.trim()).filter(Boolean);
+
   try {
-    const timestamp = Date.now().toString();
-    const params: Record<string, string> = {
-      app_key:         APP_KEY,
-      method:          "aliexpress.affiliate.product.query",  // Standard API (Active)
-      sign_method:     "md5",
-      timestamp,
-      v:               "2.0",
-      fields:          "product_id,product_title,target_sale_price,target_original_price,discount,promotion_link,product_main_image_url",
-      page_no:         "1",
-      page_size:       "20",
-      target_currency: "BRL",
-      target_language: "PT",
-      sort:            "SALE_PRICE_ASC",
-    };
-    if (TRACKING) params.tracking_id = TRACKING;
-    params.sign = signAliExpress(params, APP_SECRET);
+    // Busca cada keyword em paralelo
+    const results = await Promise.allSettled(
+      keywords.map(kw => fetchAliExpressKeyword(kw, APP_KEY, APP_SECRET, TRACKING))
+    );
 
-    const res = await fetch("https://api-sg.aliexpress.com/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body:   new URLSearchParams(params).toString(),
-      signal: AbortSignal.timeout(20000),
-    });
-
-    if (!res.ok) {
-      const t = await res.text();
-      return { synced: 0, skipped: 0, error: `AliExpress HTTP ${res.status}: ${t.slice(0, 200)}` };
+    // Combina e deduplica por product_id
+    const seen = new Set<string>();
+    const products: Record<string, unknown>[] = [];
+    for (const r of results) {
+      if (r.status === "fulfilled") {
+        for (const p of r.value) {
+          const id = String(p.product_id ?? "");
+          if (id && !seen.has(id)) { seen.add(id); products.push(p); }
+        }
+      }
     }
 
-    const json = await res.json() as Record<string, unknown>;
-
-    // Navega na estrutura da resposta
-    // Tenta ambos os formatos de resposta (hotproduct e product.query)
-    const resp = (json["aliexpress_affiliate_hotproduct_query_response"] ?? json["aliexpress_affiliate_product_query_response"]) as Record<string, unknown> | undefined;
-    const result = (resp?.resp_result as Record<string, unknown> | undefined)?.result as Record<string, unknown> | undefined;
-    const products = (result?.products as Record<string, unknown> | undefined)?.product as Record<string, unknown>[] | undefined;
-
-    if (!products || products.length === 0)
-      return { synced: 0, skipped: 0, error: `AliExpress sem produtos. Resposta: ${JSON.stringify(json).slice(0, 300)}` };
+    if (products.length === 0)
+      return { synced: 0, skipped: 0, keywords, error: "Nenhum produto encontrado para as palavras-chave" };
 
     // Garante que a loja AliExpress existe
     const { data: aliStore } = await supabase
@@ -140,7 +167,7 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
       else { synced++; }
     }
 
-    return { synced, skipped, ...(firstError ? { upsert_error: firstError } : {}) };
+    return { synced, skipped, keywords, ...(firstError ? { upsert_error: firstError } : {}) };
 
   } catch (e) {
     return { synced: 0, skipped: 0, error: `AliExpress erro: ${String(e)}` };
