@@ -147,13 +147,12 @@ export async function GET(req: NextRequest) {
     const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "@cupomhojeoficial";
     const supabase = db();
 
-    // Busca TODOS os produtos ativos — prioriza os com desconto, mas inclui todos
+    // Busca todos os produtos — sem ordenação para garantir variedade entre lojas
     const { data, error } = await supabase
       .from("coupons_with_store")
       .select("id, code, description, discount_type, discount_value, affiliate_url, expires_at, store_name, image_url")
       .eq("is_active", true)
-      .order("discount_value", { ascending: false, nullsFirst: false })
-      .limit(100);
+      .limit(300);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data || data.length === 0)
