@@ -29,62 +29,50 @@ type Coupon = {
 
 const SEP = "━━━━━━━━━━━━━━━━";
 
+// Escapa & para HTML válido no href
+function safeUrl(url: string) {
+  return url.replace(/&/g, "&amp;");
+}
+
 // ── Formata mensagem no padrão canal de promoções ─────────────────────────────
 function format(c: Coupon): string {
   const store = c.store_name.toUpperCase();
   const desc  = c.description.trim();
   const lines: string[] = [];
 
-  // ── Produto AliExpress: "De R$110 por R$48 — Título do produto"
-  const priceMatch = desc.match(/^De R\$(\S+) por R\$(\S+) — (.+)$/i);
-  if (priceMatch) {
-    const [, orig, sale, title] = priceMatch;
-    const origNum = parseFloat(orig.replace(",", "."));
-    const saleNum = parseFloat(sale.replace(",", "."));
+  // Label de desconto
+  const discountLabel =
+    c.discount_type === "percent"      && c.discount_value ? `${c.discount_value}% OFF` :
+    c.discount_type === "fixed"        && c.discount_value ? `R$${c.discount_value} de desconto` :
+    c.discount_type === "free_shipping"                    ? "Frete Grátis" : "Promoção especial";
 
-    lines.push(`🏷 <b>${store}</b>`);
-    lines.push(SEP);
-    lines.push(title.slice(0, 120));
-    if (c.discount_value && c.discount_value > 0)
-      lines.push(`💰 ${c.discount_value}% de desconto`);
-    if (origNum > saleNum && saleNum > 0)
-      lines.push(`🏷 De R$${orig} por R$${sale}`);
-    lines.push("");
-    lines.push(`🛒 <a href="${c.affiliate_url}">COMPRAR NO ALIEXPRESS</a>`);
-    lines.push(SEP);
-    lines.push("📲 @cupomhojeoficial");
-    return lines.join("\n");
-  }
+  // CTA principal
+  const cta =
+    store.includes("ALIEXPRESS") ? "COMPRAR NO ALIEXPRESS" :
+    store.includes("AMAZON")     ? "COMPRAR NA AMAZON"     :
+    c.code                       ? "COMPRAR AGORA"         : "ACESSAR AGORA";
 
-  // ── Cupom com código
-  if (c.code) {
-    const discount =
-      c.discount_type === "percent"      && c.discount_value ? `${c.discount_value}% OFF` :
-      c.discount_type === "fixed"        && c.discount_value ? `R$${c.discount_value} de desconto` :
-      c.discount_type === "free_shipping"                    ? "Frete Grátis" : "";
-
-    lines.push(`🏷 <b>${store}</b>`);
-    lines.push(SEP);
-    lines.push(desc.slice(0, 120));
-    lines.push(`☝️ Cupom: <code>${c.code}</code>`);
-    if (discount) lines.push(`💰 ${discount}`);
-    if (c.expires_at)
-      lines.push(`⏰ Válido até ${new Date(c.expires_at).toLocaleDateString("pt-BR")}`);
-    lines.push("");
-    lines.push(`🛒 <a href="${c.affiliate_url}">COMPRAR AGORA</a>`);
-    lines.push(SEP);
-    lines.push("📲 @cupomhojeoficial");
-    return lines.join("\n");
-  }
-
-  // ── Link de afiliado / indicação (Binance, Nubank, Wise, Amazon, etc.)
-  lines.push(`💡 <b>${store}</b>`);
+  lines.push(`🏷 <b>${store}</b>`);
   lines.push(SEP);
-  lines.push(desc.slice(0, 150));
+  lines.push(`🏷 ${discountLabel}`);
+  lines.push(`🛒 ${desc.slice(0, 150)}`);
+
+  if (c.discount_value && c.discount_value > 0)
+    lines.push(`💰 ${c.discount_value}% de desconto`);
+
+  if (c.code)
+    lines.push(`☝️ Cupom: <code>${c.code}</code>`);
+  else
+    lines.push(`✅ Desconto automático`);
+
+  if (c.expires_at)
+    lines.push(`⏰ Válido até ${new Date(c.expires_at).toLocaleDateString("pt-BR")}`);
+
   lines.push("");
-  lines.push(`➡️ <a href="${c.affiliate_url}">ACESSAR AGORA</a>`);
+  lines.push(`🛒 <a href="${safeUrl(c.affiliate_url)}">${cta}</a>`);
   lines.push(SEP);
   lines.push("📲 @cupomhojeoficial");
+
   return lines.join("\n");
 }
 
@@ -96,7 +84,7 @@ async function send(text: string, token: string, chatId: string) {
       chat_id: chatId,
       text,
       parse_mode: "HTML",
-      disable_web_page_preview: false,
+      disable_web_page_preview: true,
     }),
   });
   const data = await r.json() as { ok: boolean; description?: string; result?: { message_id: number } };
