@@ -104,25 +104,20 @@ function format(c: Coupon): string {
 }
 
 // ── Telegram API ──────────────────────────────────────────────────────────────
+// Link preview automático — Telegram puxa a imagem do link (igual ao Ledger)
 async function sendMessage(text: string, token: string, chatId: string) {
   const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true }),
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: false,  // preview automático do link
+    }),
   });
   const d = await r.json() as { ok: boolean; description?: string; result?: { message_id: number } };
   if (!d.ok) throw new Error(`sendMessage: ${d.description}`);
-  return d.result?.message_id;
-}
-
-async function sendPhoto(imageUrl: string, caption: string, token: string, chatId: string) {
-  const r = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, photo: imageUrl, caption: caption.slice(0, 1024), parse_mode: "HTML" }),
-  });
-  const d = await r.json() as { ok: boolean; description?: string; result?: { message_id: number } };
-  if (!d.ok) throw new Error(`sendPhoto: ${d.description}`);
   return d.result?.message_id;
 }
 
@@ -164,16 +159,8 @@ export async function GET(req: NextRequest) {
         const text   = format(coupon);
         let msgId: number | undefined;
 
-        if (coupon.image_url) {
-          // Tenta enviar com imagem, fallback para texto se falhar
-          try {
-            msgId = await sendPhoto(coupon.image_url, text, TOKEN, CHAT_ID);
-          } catch {
-            msgId = await sendMessage(text, TOKEN, CHAT_ID);
-          }
-        } else {
-          msgId = await sendMessage(text, TOKEN, CHAT_ID);
-        }
+        // Sempre usa sendMessage — Telegram puxa preview automático do link
+        msgId = await sendMessage(text, TOKEN, CHAT_ID);
 
         results.push({ id: coupon.id, store: coupon.store_name, ok: true, message_id: msgId, has_image: !!coupon.image_url });
       } catch (e) {

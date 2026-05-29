@@ -72,17 +72,16 @@ export async function GET(req: NextRequest) {
     const headers = parseCSVLine(allLines[0]);
     const col = (name: string) => headers.indexOf(name);
 
+    // Colunas confirmadas pelo debug do feed real
     const C_LINK  = col("aw_deep_link");
     const C_NAME  = col("product_name");
     const C_ID    = col("aw_product_id");
-    const C_PRICE = col("search_price");
-    const C_RRP   = col("rrp_price");
-    const C_DISC  = col("savings_percent");
+    const C_PRICE = col("search_price");   // preço atual (pode ser BRL ou USD)
+    const C_RRP   = col("rrp_price");      // preço original (frequentemente vazio)
     const C_STOCK = col("in_stock");
     const C_MERC  = col("merchant_name");
-    const C_IMG   = col("merchant_image_url");
-
-    console.log("Colunas encontradas:", { C_LINK, C_NAME, C_PRICE, C_RRP, C_DISC, C_STOCK, C_IMG });
+    const C_IMG   = col("image_url");      // coluna confirmada no feed real
+    const C_MERCH_IMG = col("merchant_image_url"); // fallback
 
     // Debug: mostra o header e a primeira linha para entender a estrutura
     const debug = req.nextUrl.searchParams.get("debug") === "1";
@@ -93,11 +92,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ headers, sample: map, total_rows: allLines.length - 1 });
     }
 
-    // 4. Pega os primeiros MAX produtos que tenham link e nome
+    // 4. Pega produtos em estoque com link e nome, ordenados por preço DESC (premium primeiro)
     const rows = allLines.slice(1)
       .map(l => parseCSVLine(l))
-      .filter(f => f[C_LINK]?.startsWith("http") && f[C_NAME]?.length > 0)
-      .sort((a, b) => parseFloat(b[C_DISC] ?? "0") - parseFloat(a[C_DISC] ?? "0"))
+      .filter(f =>
+        f[C_LINK]?.startsWith("http") &&
+        f[C_NAME]?.length > 0 &&
+        f[C_STOCK] === "1"
+      )
+      .sort((a, b) => parseFloat(b[C_PRICE] ?? "0") - parseFloat(a[C_PRICE] ?? "0"))
       .slice(0, MAX);
 
     if (rows.length === 0)
@@ -124,22 +127,32 @@ export async function GET(req: NextRequest) {
       const productId = f[C_ID];
       const price     = parseFloat(f[C_PRICE] ?? "") || null;
       const rrp       = parseFloat(f[C_RRP]   ?? "") || null;
-      const disc      = parseFloat(f[C_DISC]  ?? "") || null;
 
       if (!link || !productId) { skipped++; continue; }
 
+      // Calcula desconto quando rrp > price
+      const disc = rrp && price && rrp > price
+        ? Math.round(((rrp - price) / rrp) * 100)
+        : null;
+
+      // Descrição com preço em R$ (feed usa BRL mesmo que currency mostre USD)
       const desc = rrp && price && rrp > price
         ? `De R$${rrp.toFixed(0)} por R$${price.toFixed(0)} — ${name}`
+        : price && price > 0
+        ? `R$${price.toFixed(0)} — ${name}`
         : name;
 
-      const imageUrl = f[C_IMG]?.startsWith("http") ? f[C_IMG] : null;
+      // Imagem: usa image_url do feed, fallback para merchant_image_url
+      const imageUrl =
+        (f[C_IMG]?.startsWith("http") ? f[C_IMG] : null) ??
+        (f[C_MERCH_IMG]?.startsWith("http") ? f[C_MERCH_IMG] : null);
 
       const { error } = await supabase.from("coupons").upsert({
         store_id:       storeRow.id,
         code:           "",
         description:    desc,
         discount_type:  disc && disc > 0 ? "percent" : "other",
-        discount_value: disc && disc > 0 ? disc : null,
+        discount_value: disc,
         affiliate_url:  link,
         external_id:    `awin-feed-${productId}`,
         image_url:      imageUrl,
