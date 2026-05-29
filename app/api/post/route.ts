@@ -158,8 +158,27 @@ export async function GET(req: NextRequest) {
     if (!data || data.length === 0)
       return NextResponse.json({ ok: false, msg: "Nenhum cupom ativo. Rode /api/sync primeiro." });
 
-    // Embaralha e pega N aleatórios
-    const shuffled = (data as Coupon[]).sort(() => Math.random() - 0.5).slice(0, limit);
+    // Round-robin por loja — garante variedade (Amazon, AliExpress, LG, etc.)
+    const byStore: Record<string, Coupon[]> = {};
+    for (const c of data as Coupon[]) {
+      if (!byStore[c.store_name]) byStore[c.store_name] = [];
+      byStore[c.store_name].push(c);
+    }
+    // Embaralha dentro de cada loja
+    for (const k of Object.keys(byStore)) byStore[k].sort(() => Math.random() - 0.5);
+    // Round-robin: 1 de cada loja por rodada
+    const storeKeys = Object.keys(byStore).sort(() => Math.random() - 0.5);
+    const shuffled: Coupon[] = [];
+    let round = 0;
+    while (shuffled.length < limit) {
+      let added = 0;
+      for (const k of storeKeys) {
+        if (shuffled.length >= limit) break;
+        if (byStore[k].length > round) { shuffled.push(byStore[k][round]); added++; }
+      }
+      if (added === 0) break;
+      round++;
+    }
 
     const results = [];
     for (const coupon of shuffled) {
