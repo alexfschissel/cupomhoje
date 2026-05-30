@@ -232,8 +232,19 @@ export async function GET(req: NextRequest) {
 
     // Prioriza lojas com MUITOS produtos (AliExpress, Amazon, ML, AWIN)
     // Reduz frequência de lojas genéricas (Wise, Nubank, Kast, etc)
-    const priorityStores = ["AliExpress", "Amazon", "Mercado Livre", "LG BR", "Stanley BR", "Arno BR"];
-    const lowPriorityStores = ["Wise", "Nubank", "Kast", "Natura BR", "E-book Bitcoin"];
+    // Lojas grandes — aparecem mais (3x por batch)
+    const priorityStores = [
+      "AliExpress", "Amazon", "Mercado Livre",
+      // Todos os AWIN merchants aprovados
+      "LG BR", "Stanley BR", "Arno BR", "Panasonic BR",
+      "Lacoste BR", "Café L'or BR", "Evas BR",
+      "Alianças Imperiais BR", "Zé Delivery BR", "VIVÃO",
+    ];
+    const lowPriorityStores = [
+      "Wise", "Nubank", "Kast", "Natura BR", "E-book Bitcoin",
+      "Ledger", "Shopclub", "ShopClub", "Booking", "Hostinger",
+      "Binance", "Bybit", "Trezor",
+    ];
 
     const shuffled: Coupon[] = [];
     const byStore: Record<string, Coupon[]> = {};
