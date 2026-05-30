@@ -27,7 +27,8 @@ function db() {
 }
 
 // Chave API v2 do Lomadee (novo endpoint beta)
-const LOMADEE_API_TOKEN = process.env.LOMADEE_API_TOKEN ?? "";
+// Aceita LOMADEE_APP_TOKEN (nome no Vercel) ou LOMADEE_API_TOKEN (alternativo)
+const LOMADEE_API_TOKEN = process.env.LOMADEE_APP_TOKEN ?? process.env.LOMADEE_API_TOKEN ?? "";
 
 async function fetchLomaDeeCoupons(): Promise<Record<string, unknown>[]> {
   try {
