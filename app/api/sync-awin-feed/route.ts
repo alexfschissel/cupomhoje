@@ -139,7 +139,12 @@ export async function POST(req: NextRequest) {
           ? `R$${searchPrice.toFixed(0)} — ${productName}`
           : productName;
 
-        const discount = savingsPct > 0 ? Math.round(savingsPct) : null;
+        // Calcula discount: 1º savings_percent, 2º preços, 3º default 10%
+        let discount: number | null = savingsPct > 0 ? Math.round(savingsPct) : null;
+        if (!discount && rrrPrice > 0 && searchPrice > 0 && rrrPrice > searchPrice) {
+          discount = Math.round(((rrrPrice - searchPrice) / rrrPrice) * 100);
+        }
+        if (!discount) discount = 10; // default mínimo para aparecer no canal
 
         coupons.push({
           store_id:       storeId,
