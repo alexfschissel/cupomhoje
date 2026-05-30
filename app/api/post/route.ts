@@ -244,48 +244,61 @@ export async function GET(req: NextRequest) {
       byStore[c.store_name].push(c);
     }
 
-    // Embaralha dentro de cada loja
+    // Embaralha AGRESSIVAMENTE dentro de cada loja (Fisher-Yates)
     for (const k of Object.keys(byStore)) {
-      byStore[k].sort(() => Math.random() - 0.5);
+      const arr = byStore[k];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
     }
 
-    // Round-robin com pesos: lojas prioritárias aparecem 3x, normais 1x, baixas 0.3x
-    let round = 0;
-    while (shuffled.length < limit) {
-      let added = 0;
-      for (const k of Object.keys(byStore).sort(() => Math.random() - 0.5)) {
+    // ROUND-ROBIN SIMPLES — máximo 3 produtos por loja prioritária, 1 por loja pequena
+    const MAX_PER_PRIORITY = 3;
+    const MAX_PER_NORMAL   = 2;
+    const MAX_PER_LOW      = 1;
+
+    const usedFromStore: Record<string, number> = {};
+    const seenUrls = new Set<string>();
+
+    // Lista todas as lojas embaralhada
+    const storeKeys = Object.keys(byStore);
+    for (let i = storeKeys.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [storeKeys[i], storeKeys[j]] = [storeKeys[j], storeKeys[i]];
+    }
+
+    // Round-robin: dá 1 produto de cada loja por vez, máximo MAX_PER_X por loja
+    let stillHas = true;
+    while (shuffled.length < limit && stillHas) {
+      stillHas = false;
+      for (const k of storeKeys) {
         if (shuffled.length >= limit) break;
 
-        let idx = round;
-        if (priorityStores.some(p => k.includes(p))) {
-          // Prioridade alta — tira 3 produtos por rodada
-          idx = Math.floor(round / 3);
-          if (round % 3 !== 0) continue;
-        } else if (lowPriorityStores.some(l => k.includes(l))) {
-          // Prioridade baixa — tira 1 a cada 3 rodadas
-          if (round % 3 !== 0) continue;
-          idx = Math.floor(round / 3);
+        // Define máximo dessa loja
+        const isPriority = priorityStores.some(p => k.includes(p));
+        const isLow      = lowPriorityStores.some(l => k.includes(l));
+        const maxFromStore = isLow ? MAX_PER_LOW : isPriority ? MAX_PER_PRIORITY : MAX_PER_NORMAL;
+
+        const used = usedFromStore[k] ?? 0;
+        if (used >= maxFromStore) continue;
+        if (used >= byStore[k].length) continue;
+
+        const candidate = byStore[k][used];
+
+        // Evita URLs duplicadas no batch
+        if (seenUrls.has(candidate.affiliate_url)) {
+          usedFromStore[k] = used + 1;
+          stillHas = true;
+          continue;
         }
 
-        if (byStore[k].length > idx) {
-          shuffled.push(byStore[k][idx]);
-          added++;
-        }
+        shuffled.push(candidate);
+        seenUrls.add(candidate.affiliate_url);
+        usedFromStore[k] = used + 1;
+        stillHas = true;
       }
-      if (added === 0) break;
-      round++;
     }
-
-    // Deduplicação extra por URL — evita 2 mensagens iguais no mesmo batch
-    const seenUrls = new Set<string>();
-    const dedupedShuffled: Coupon[] = [];
-    for (const c of shuffled) {
-      if (seenUrls.has(c.affiliate_url)) continue;
-      seenUrls.add(c.affiliate_url);
-      dedupedShuffled.push(c);
-    }
-    shuffled.length = 0;
-    shuffled.push(...dedupedShuffled);
 
     const results = [];
     const now = new Date().toISOString();

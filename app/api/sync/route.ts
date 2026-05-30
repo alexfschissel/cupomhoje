@@ -43,9 +43,9 @@ async function fetchAliExpressKeyword(
 ): Promise<Record<string, unknown>[]> {
   const timestamp = Date.now().toString();
 
-  // Faixa de preço configurável via env (padrão: miniaturas R$20–R$500)
-  const minPrice = process.env.ALIEXPRESS_MIN_PRICE ?? "20";
-  const maxPrice = process.env.ALIEXPRESS_MAX_PRICE ?? "500";
+  // Faixa de preço configurável via env (padrão: bem aberto R$5–R$2000)
+  const minPrice = process.env.ALIEXPRESS_MIN_PRICE ?? "5";
+  const maxPrice = process.env.ALIEXPRESS_MAX_PRICE ?? "2000";
 
   const params: Record<string, string> = {
     app_key:         APP_KEY,
@@ -55,7 +55,7 @@ async function fetchAliExpressKeyword(
     v:               "2.0",
     keywords:        keyword,
     page_no:         "1",
-    page_size:       "40",              // busca mais para filtrar melhor
+    page_size:       "50",              // máximo permitido
     target_currency: "BRL",
     target_language: "PT",
     sort:            "DISCOUNT_DESC",   // maior desconto primeiro
@@ -83,7 +83,7 @@ async function fetchAliExpressKeyword(
   if (!Array.isArray(list)) return [];
 
   // Filtro de qualidade local: mínimo 10% de desconto + avaliação ≥ 4 estrelas (80%)
-  const MIN_DISCOUNT = parseInt(process.env.ALIEXPRESS_MIN_DISCOUNT ?? "10");
+  const MIN_DISCOUNT = parseInt(process.env.ALIEXPRESS_MIN_DISCOUNT ?? "5");
   const MIN_RATING   = parseFloat(process.env.ALIEXPRESS_MIN_RATING ?? "80");
 
   return list.filter((p: Record<string, unknown>) => {
@@ -102,18 +102,44 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
   if (!APP_KEY || !APP_SECRET)
     return { synced: 0, skipped: 0, error: "ALIEXPRESS_APP_KEY ou ALIEXPRESS_APP_SECRET não configurados" };
 
-  // Palavras-chave opcionais via env var — se vazio, busca produtos em alta no geral
+  // Keywords padrão — produtos que VENDEM no AliExpress (igual ao email de propaganda)
+  const DEFAULT_KEYWORDS = [
+    // Gaming / Nintendo / Sega
+    "lego", "pokemon", "mario kart", "zelda", "nintendo switch", "game boy",
+    "playstation", "sega genesis", "sonic", "pop mart",
+    // Action figures / Anime
+    "naruto", "dragon ball", "one piece", "anime figure", "funko pop",
+    // Carros miniaturas
+    "hot wheels", "miniatura carro", "mini gt", "diecast",
+    // Eletrônicos
+    "fone bluetooth", "smartwatch", "carregador rapido", "cabo usb c",
+    "caixa de som bluetooth", "iphone case", "samsung case",
+    // Casa / Cozinha
+    "luminaria led", "panela inox", "garrafa termica", "lampada led",
+    // Beleza
+    "perfume importado", "maquiagem",
+    // Esportes
+    "tenis esportivo", "mochila",
+    // Pet
+    "brinquedo pet",
+  ];
+
+  // Permite override via env, mas usa lista padrão se vazio
   const rawKeywords = process.env.ALIEXPRESS_KEYWORDS ?? "";
-  const keywords    = rawKeywords.split(",").map(k => k.trim()).filter(Boolean);
+  const keywords = rawKeywords
+    ? rawKeywords.split(",").map(k => k.trim()).filter(Boolean)
+    : DEFAULT_KEYWORDS;
 
   try {
-    let products: Record<string, unknown>[] = [];
+    const products: Record<string, unknown>[] = [];
     const seen = new Set<string>();
 
-    if (keywords.length > 0) {
-      // Busca por palavras-chave específicas em paralelo
+    // Busca em PARALELO mas em lotes de 5 para não estourar limite de API
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
+      const batch = keywords.slice(i, i + BATCH_SIZE);
       const results = await Promise.allSettled(
-        keywords.map(kw => fetchAliExpressKeyword(kw, APP_KEY, APP_SECRET, TRACKING))
+        batch.map(kw => fetchAliExpressKeyword(kw, APP_KEY, APP_SECRET, TRACKING))
       );
       for (const r of results) {
         if (r.status === "fulfilled") {
@@ -123,9 +149,10 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
           }
         }
       }
-    } else {
-      // Sem keywords → produtos em alta no geral (Advanced API sem filtro)
-      products = await fetchAliExpressKeyword("", APP_KEY, APP_SECRET, TRACKING);
+      // 500ms entre lotes para evitar rate limit
+      if (i + BATCH_SIZE < keywords.length) {
+        await new Promise(r => setTimeout(r, 500));
+      }
     }
 
     if (products.length === 0)
