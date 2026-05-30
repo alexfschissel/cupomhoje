@@ -280,63 +280,8 @@ async function syncAwin(supabase: ReturnType<typeof db>) {
 }
 
 // ── LOMADEE ───────────────────────────────────────────────────────────────────
-async function syncLomadee(supabase: ReturnType<typeof db>) {
-  const TOKEN = process.env.LOMADEE_APP_TOKEN;
-  if (!TOKEN) return { synced: 0, skipped: 0, error: "LOMADEE_APP_TOKEN não configurado" };
-
-  try {
-    const res = await fetch(
-      `https://api.lomadee.com/v3/${TOKEN}/coupon/_all`,
-      { cache: "no-store", signal: AbortSignal.timeout(20000),
-        headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } }
-    );
-    if (!res.ok) {
-      const t = await res.text();
-      return { synced: 0, skipped: 0, error: `Lomadee ${res.status}: ${t.slice(0, 200)}` };
-    }
-
-    const json = await res.json() as { coupons?: Record<string, unknown>[] };
-    const coupons = json.coupons ?? [];
-    if (coupons.length === 0) return { synced: 0, skipped: 0, error: "Nenhum cupom Lomadee" };
-
-    let synced = 0, skipped = 0;
-    for (const c of coupons.slice(0, 500)) {
-      const store     = c.store as Record<string, unknown> | null;
-      const storeId   = String(store?.id ?? "");
-      const storeName = String(store?.name ?? "Loja");
-      const couponId  = String(c.id ?? "");
-      if (!storeId || !couponId) { skipped++; continue; }
-
-      const { data: storeRow } = await supabase
-        .from("stores")
-        .upsert({ slug: toSlug(storeName, `lm-${storeId}`), name: storeName, logo_url: String(store?.thumbnail ?? ""), website_url: String(store?.link ?? ""), affiliate_id: storeId, affiliate_network: "lomadee", is_active: true }, { onConflict: "slug" })
-        .select("id").single();
-      if (!storeRow?.id) { skipped++; continue; }
-
-      const desc = String(c.description ?? "").toUpperCase();
-      const discountType =
-        desc.includes("%")                          ? "percent"      :
-        desc.includes("FRETE GRÁTIS") || desc.includes("FRETE GRATIS") ? "free_shipping" :
-        desc.includes("R$")                         ? "fixed"        : "other";
-      const discountValue =
-        discountType === "percent" ? parseFloat(desc.match(/(\d+)%/)?.[1] ?? "0") :
-        discountType === "fixed"   ? parseFloat(desc.match(/R\$\s?(\d+)/)?.[1] ?? "0") : null;
-
-      const { error } = await supabase.from("coupons").upsert({
-        store_id: storeRow.id, code: String(c.code ?? ""),
-        description: String(c.description ?? "Cupom"), discount_type: discountType, discount_value: discountValue,
-        affiliate_url: String(c.link ?? ""), external_id: `lm-${couponId}`,
-        is_verified: true, is_active: true,
-        expires_at: c.vigency ? new Date(String(c.vigency)).toISOString() : null,
-      }, { onConflict: "external_id" });
-
-      error ? skipped++ : synced++;
-    }
-    return { synced, skipped };
-  } catch (e) {
-    return { synced: 0, skipped: 0, error: `Lomadee fetch falhou: ${String(e)}` };
-  }
-}
+// Endpoint v3 antigo (api.lomadee.com) foi DESCONTINUADO.
+// Lomadee agora roda em /api/sync-lomadee usando api-beta.lomadee.com.br.
 
 // ── HANDLER ───────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -351,10 +296,11 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = db();
 
-    const [aliResult, awinResult, lomadeeResult] = await Promise.allSettled([
+    // Lomadee não roda aqui — usa endpoint dedicado /api/sync-lomadee
+    // (api.lomadee.com v3 foi descontinuado; usar api-beta.lomadee.com.br)
+    const [aliResult, awinResult] = await Promise.allSettled([
       syncAliExpress(supabase),
       syncAwin(supabase),
-      syncLomadee(supabase),
     ]);
 
     await supabase.from("coupons")
@@ -366,7 +312,7 @@ export async function GET(req: NextRequest) {
       ok:       true,
       aliexpress: aliResult.status    === "fulfilled" ? aliResult.value    : { error: String(aliResult.reason)    },
       awin:       awinResult.status   === "fulfilled" ? awinResult.value   : { error: String(awinResult.reason)   },
-      lomadee:    lomadeeResult.status === "fulfilled" ? lomadeeResult.value : { error: String(lomadeeResult.reason) },
+      lomadee:    { note: "Lomadee usa endpoint dedicado /api/sync-lomadee" },
       ts: new Date().toISOString(),
     });
 
