@@ -102,26 +102,73 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
   if (!APP_KEY || !APP_SECRET)
     return { synced: 0, skipped: 0, error: "ALIEXPRESS_APP_KEY ou ALIEXPRESS_APP_SECRET não configurados" };
 
-  // Keywords padrão — produtos que VENDEM no AliExpress (igual ao email de propaganda)
+  // Keywords MASSIVAS — cobertura de TODAS as 22 categorias AliExpress
   const DEFAULT_KEYWORDS = [
-    // Gaming / Nintendo / Sega
-    "lego", "pokemon", "mario kart", "zelda", "nintendo switch", "game boy",
-    "playstation", "sega genesis", "sonic", "pop mart",
-    // Action figures / Anime
-    "naruto", "dragon ball", "one piece", "anime figure", "funko pop",
-    // Carros miniaturas
-    "hot wheels", "miniatura carro", "mini gt", "diecast",
-    // Eletrônicos
+    // 🎮 Gaming / Consoles / Anime (Toys & Games + Books & Media)
+    "lego", "pokemon cards", "mario kart", "zelda", "nintendo switch", "game boy",
+    "playstation", "sega genesis", "sonic", "pop mart", "8bitdo controller",
+    "naruto figure", "dragon ball figure", "one piece figure", "anime figure", "funko pop",
+    "jojo bizarre", "gundam model", "trading card", "pokemon tcg",
+
+    // 🚗 Carros / Colecionáveis (Toys + Automotive)
+    "hot wheels", "miniatura carro", "mini gt", "diecast model car",
+    "pop race", "tomica", "matchbox cars",
+
+    // 🎧 Eletrônicos / Tech (Electronics + Cell Phones)
     "fone bluetooth", "smartwatch", "carregador rapido", "cabo usb c",
     "caixa de som bluetooth", "iphone case", "samsung case",
-    // Casa / Cozinha
+    "ssd nvme", "ssd sata", "hub usb c", "dock station", "magsafe wallet",
+    "mouse sem fio", "teclado mecanico", "webcam", "ring light",
+    "anbernic console", "raspberry pi", "drone mini",
+
+    // 🏠 Casa / Cozinha (Appliances + Furniture + Patio)
     "luminaria led", "panela inox", "garrafa termica", "lampada led",
-    // Beleza
-    "perfume importado", "maquiagem",
-    // Esportes
-    "tenis esportivo", "mochila",
-    // Pet
-    "brinquedo pet",
+    "organizador cozinha", "frigideira antiaderente", "cafeteira",
+    "aspirador portatil", "ventilador usb", "umidificador",
+
+    // 💄 Beleza / Saúde (Beauty & Health)
+    "perfume importado", "maquiagem", "chapinha cabelo", "secador cabelo",
+    "kit sobrancelha", "cilios posticos", "kit unha", "cortador unha",
+    "esmalte gel", "sombra olhos", "batom matte",
+
+    // 🩺 Saúde / Cuidados
+    "fio dental", "nebulizador", "organizador comprimidos", "massageador",
+    "termometro digital", "balança digital",
+
+    // 🏋️ Esportes / Outdoor (Sports & Outdoors)
+    "tenis esportivo", "mochila esportiva", "garrafa academia",
+    "elastico fitness", "luva academia", "rolinho yoga", "barraca camping",
+
+    // 🐕 Pet (Pet Supplies)
+    "brinquedo pet", "comedouro pet", "coleira cachorro", "guia cachorro",
+    "fonte gato", "arranhador gato",
+
+    // 👶 Bebê / Maternidade (Baby & Maternity)
+    "carrinho bebe", "babador bebe", "chupeta", "mordedor bebe",
+
+    // 📚 Papelaria / Office (Office & School)
+    "caneta gel", "marcador acrilico", "fita adesiva dupla", "sticker book",
+    "impressora termica", "organizador papelaria", "agenda planner",
+
+    // 👜 Bolsas / Acessórios (Bags & Luggage)
+    "mochila escolar", "bolsa feminina", "carteira couro", "mala viagem",
+
+    // 👞 Sapatos (Shoes)
+    "tenis casual", "sandalia feminina", "sapato social",
+
+    // 💎 Joias / Acessórios (Jewelry)
+    "colar prata", "brinco ouro", "pulseira couro", "relogio masculino",
+
+    // 🔧 Ferramentas (Tools & Home Improvement)
+    "parafusadeira", "kit chaves", "fita metrica", "trena laser",
+    "organizador ferramentas",
+
+    // 🚗 Auto (Automotive)
+    "suporte celular carro", "cobertor carro", "tapete carro",
+    "cabo bateria carro",
+
+    // 🎨 Artes / Costura (Arts, Crafts & Sewing)
+    "pincel pintura", "tela canvas", "linha croche", "agulha tricot",
   ];
 
   // Permite override via env, mas usa lista padrão se vazio
