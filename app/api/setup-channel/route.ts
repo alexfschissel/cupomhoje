@@ -18,60 +18,15 @@ function okAuth(req: NextRequest) {
 
 const CHANNEL_DESCRIPTION = "🏷 Cupons e descontos a cada 15 min | Amazon, AliExpress, Shopee, LG, Stanley e mais | 100% grátis";
 
-const WELCOME_MESSAGE = `🎉 <b>BEM-VINDO AO CUPOMHOJE!</b>
+const WELCOME_MESSAGE = `🔥 <b>CUPONS E DESCONTOS · 24h POR DIA</b>
 
-🏷 O canal nº 1 de cupons e descontos do Brasil
+✅ Amazon, AliExpress, Shopee
+✅ LG, Stanley, Lacoste, Natura
+✅ Até <b>80% OFF</b> | Nova oferta a cada 15 min
+✅ 100% grátis · Sem spam
 
-━━━━━━━━━━━━━━━━━━━━━
-
-📌 <b>COMO FUNCIONA</b>
-
-✅ Postamos uma nova oferta a cada <b>15 minutos</b>
-✅ Cupons e descontos de até <b>80% OFF</b>
-✅ Link direto para a loja (com cupom aplicado)
-✅ 100% grátis | Sem cadastro | Sem spam
-
-━━━━━━━━━━━━━━━━━━━━━
-
-🛍 <b>LOJAS PARCEIRAS</b>
-
-🛒 Amazon | AliExpress | Shopee
-📺 LG | Stanley | Panasonic | Arno
-👕 Lacoste | Renner | Dafiti | Havaianas
-💄 Natura | Evas | Vivara
-🍺 Zé Delivery | Café L'or
-✈️ Decolar | Booking
-₿ Binance | Bybit | Ledger
-+ muitas outras
-
-━━━━━━━━━━━━━━━━━━━━━
-
-💡 <b>COMO USAR</b>
-
-1️⃣ Quando uma oferta te interessar, toque em <b>"COMPRAR AGORA"</b>
-2️⃣ O cupom é aplicado automaticamente
-3️⃣ Finalize sua compra com o desconto ✅
-
-━━━━━━━━━━━━━━━━━━━━━
-
-🔔 <b>ATIVE AS NOTIFICAÇÕES</b>
-
-Para não perder nenhuma oferta:
-📱 Toque no nome do canal no topo
-🔔 Ative as notificações
-
-━━━━━━━━━━━━━━━━━━━━━
-
-💬 <b>NOSSA COMUNIDADE</b>
-
-👉 @cupomhojecomunidade
-Compartilhe dicas de economia e tire dúvidas
-
-━━━━━━━━━━━━━━━━━━━━━
-
-⚠️ <i>Aviso: somos afiliados das lojas parceiras. Preços e disponibilidade podem variar.</i>
-
-🚀 <b>Bons descontos!</b>`;
+🔔 <b>Ative as notificações</b> ↑ pra não perder
+💬 Comunidade: @cupomhojecomunidade`;
 
 export async function GET(req: NextRequest) {
   if (!okAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
