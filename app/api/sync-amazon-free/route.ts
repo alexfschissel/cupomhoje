@@ -96,7 +96,7 @@ function parseProducts(html: string, category: string): Array<{
 
   // Pega blocos com data-asin (até 100 produtos por página)
   const asinRegex = /data-asin="([A-Z0-9]{10})"[\s\S]{0,4000}?(?=data-asin="[A-Z0-9]{10}"|$)/g;
-  const matches = html.matchAll(asinRegex);
+  const matches = Array.from(html.matchAll(asinRegex));
 
   for (const match of matches) {
     try {
