@@ -150,11 +150,16 @@ export async function GET(req: NextRequest) {
     const CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "@cupomhojeoficial";
     const supabase = db();
 
-    // Busca produtos com desconto real
-    // Lojas grandes (AliExpress, Amazon): pode repetir após 4h
-    // Lojas pequenas (Wise, Nubank, Ledger, Shopclub): aguarda 12h
-    const fourHoursAgo = new Date();
-    fourHoursAgo.setHours(fourHoursAgo.getHours() - 4);
+    // POLÍTICA DE COOLDOWN — sem repetir produtos até o ciclo completo
+    // - Padrão: 48 horas (2 dias) — temos 2.600+ produtos NULL, ciclo demora ~32h
+    // - Lojas pequenas (Wise, Nubank): 7 dias (168h)
+    // Resultado: cada produto aparece no máximo 1x a cada 2 dias
+    const COOLDOWN_HOURS_DEFAULT = 48;
+    const COOLDOWN_HOURS_SMALL = 168;
+
+    const cooldownDefault = new Date();
+    cooldownDefault.setHours(cooldownDefault.getHours() - COOLDOWN_HOURS_DEFAULT);
+    const fourHoursAgo = cooldownDefault; // mantém nome da variável para não quebrar
 
     // Busca direto da tabela coupons com JOIN em stores (view não tem last_posted_at)
     // IMPORTANTE: order by last_posted_at NULLS FIRST → produtos NUNCA postados vêm primeiro
@@ -198,9 +203,9 @@ export async function GET(req: NextRequest) {
         }))
       : null;
 
-    // Filtra ainda mais lojas pequenas (12h mínimo)
+    // Filtra ainda mais lojas pequenas (7 dias mínimo entre reposts)
     const twelveHoursAgo = new Date();
-    twelveHoursAgo.setHours(twelveHoursAgo.getHours() - 12);
+    twelveHoursAgo.setHours(twelveHoursAgo.getHours() - COOLDOWN_HOURS_SMALL);
     const smallStores = [
       "Wise", "Nubank", "Kast", "Natura BR", "E-book Bitcoin",
       "Ledger", "Shopclub", "ShopClub", "Booking", "Hostinger",
