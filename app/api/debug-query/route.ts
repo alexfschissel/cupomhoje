@@ -44,38 +44,44 @@ export async function GET(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    type Row = {
-      id: string;
-      description: string;
-      discount_value: number;
-      last_posted_at: string | null;
-      stores: { name?: string } | null;
+    // Helper: extrai store name seja array ou objeto
+    const getStoreName = (stores: unknown): string => {
+      if (!stores) return "NULL_STORES";
+      if (Array.isArray(stores)) {
+        const first = stores[0] as { name?: string } | undefined;
+        return first?.name ?? "EMPTY_ARRAY";
+      }
+      return (stores as { name?: string }).name ?? "NO_NAME";
     };
 
     const byStore: Record<string, { count: number; nullCount: number; samples: string[] }> = {};
 
-    for (const r of (rawData ?? []) as Row[]) {
-      const storeName = r.stores?.name ?? "UNKNOWN";
+    const rows = (rawData ?? []) as Array<Record<string, unknown>>;
+
+    for (const r of rows) {
+      const storeName = getStoreName(r.stores);
       if (!byStore[storeName]) byStore[storeName] = { count: 0, nullCount: 0, samples: [] };
       byStore[storeName].count++;
       if (!r.last_posted_at) byStore[storeName].nullCount++;
       if (byStore[storeName].samples.length < 2) {
-        byStore[storeName].samples.push(`[${r.last_posted_at ? r.last_posted_at.slice(0, 10) : 'NULL'}] ${r.description.slice(0, 50)}`);
+        const lp = r.last_posted_at as string | null;
+        const desc = (r.description as string).slice(0, 50);
+        byStore[storeName].samples.push(`[${lp ? lp.slice(0, 10) : 'NULL'}] ${desc}`);
       }
     }
 
-    // Top stores by NULL count (essas deveriam aparecer primeiro!)
     const sorted = Object.entries(byStore)
       .sort((a, b) => b[1].nullCount - a[1].nullCount);
 
     return NextResponse.json({
       ok: true,
-      total_returned: rawData?.length ?? 0,
+      total_returned: rows.length,
       stores_count: Object.keys(byStore).length,
-      first_5_returned: (rawData ?? []).slice(0, 5).map((r: Row) => ({
-        store: r.stores?.name,
+      first_5_returned: rows.slice(0, 5).map((r) => ({
+        store: getStoreName(r.stores),
+        stores_raw_type: Array.isArray(r.stores) ? "array" : typeof r.stores,
         last_posted: r.last_posted_at,
-        desc: r.description.slice(0, 50),
+        desc: (r.description as string).slice(0, 50),
       })),
       by_store: Object.fromEntries(sorted.map(([k, v]) => [k, { count: v.count, null_count: v.nullCount, samples: v.samples }])),
       ts: new Date().toISOString(),

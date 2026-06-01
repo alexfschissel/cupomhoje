@@ -172,20 +172,29 @@ export async function GET(req: NextRequest) {
       .order("last_posted_at", { ascending: true, nullsFirst: true })
       .limit(1500);
 
+    // Helper: extrai store name — Supabase JOIN às vezes retorna array, às vezes objeto
+    const extractStoreName = (stores: unknown): string => {
+      if (!stores) return "Loja";
+      if (Array.isArray(stores)) {
+        const first = stores[0] as { name?: string } | undefined;
+        return first?.name ?? "Loja";
+      }
+      return (stores as { name?: string }).name ?? "Loja";
+    };
+
     // Achata a estrutura: stores.name → store_name
-    type RawCoupon = Omit<Coupon, "store_name"> & { stores?: { name?: string } | null };
     const data: Coupon[] | null = rawData
-      ? (rawData as RawCoupon[]).map(r => ({
-          id: r.id,
-          code: r.code,
-          description: r.description,
-          discount_type: r.discount_type,
-          discount_value: r.discount_value,
-          affiliate_url: r.affiliate_url,
-          expires_at: r.expires_at,
-          image_url: r.image_url,
-          last_posted_at: r.last_posted_at,
-          store_name: r.stores?.name ?? "Loja",
+      ? (rawData as Array<Record<string, unknown>>).map(r => ({
+          id: r.id as string,
+          code: r.code as string | null,
+          description: r.description as string,
+          discount_type: r.discount_type as string,
+          discount_value: r.discount_value as number | null,
+          affiliate_url: r.affiliate_url as string,
+          expires_at: r.expires_at as string | null,
+          image_url: r.image_url as string | null,
+          last_posted_at: r.last_posted_at as string | null,
+          store_name: extractStoreName(r.stores),
         }))
       : null;
 
@@ -296,12 +305,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Embaralha cada bucket separadamente (Fisher-Yates)
-    function shuffle<T>(arr: T[]) {
+    const shuffle = <T>(arr: T[]) => {
       for (let i = arr.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [arr[i], arr[j]] = [arr[j], arr[i]];
       }
-    }
+    };
     shuffle(priorityKeys);
     shuffle(normalKeys);
     shuffle(lowKeys);
