@@ -157,6 +157,8 @@ export async function GET(req: NextRequest) {
     fourHoursAgo.setHours(fourHoursAgo.getHours() - 4);
 
     // Busca direto da tabela coupons com JOIN em stores (view não tem last_posted_at)
+    // IMPORTANTE: order by last_posted_at NULLS FIRST → produtos NUNCA postados vêm primeiro
+    // Limit aumentado pra 1500 → garante representação de TODAS as lojas
     const { data: rawData, error } = await supabase
       .from("coupons")
       .select(`
@@ -167,7 +169,8 @@ export async function GET(req: NextRequest) {
       .eq("is_active", true)
       .gt("discount_value", 0)
       .or(`last_posted_at.is.null,last_posted_at.lt.${fourHoursAgo.toISOString()}`)
-      .limit(300);
+      .order("last_posted_at", { ascending: true, nullsFirst: true })
+      .limit(1500);
 
     // Achata a estrutura: stores.name → store_name
     type RawCoupon = Omit<Coupon, "store_name"> & { stores?: { name?: string } | null };
