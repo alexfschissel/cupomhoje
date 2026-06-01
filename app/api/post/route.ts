@@ -235,10 +235,13 @@ export async function GET(req: NextRequest) {
     // Lojas grandes — aparecem mais (3x por batch)
     const priorityStores = [
       "AliExpress", "Amazon", "Mercado Livre",
+      "KaBuM", "Kabum", // Kabum tem 214 produtos, deve ser priority
       // Todos os AWIN merchants aprovados
       "LG BR", "Stanley BR", "Arno BR", "Panasonic BR",
       "Lacoste BR", "Café L'or BR", "Evas BR",
       "Alianças Imperiais BR", "Zé Delivery BR", "VIVÃO",
+      // Lojas Lomadee de alto volume
+      "Lomadee Partners",
     ];
     const lowPriorityStores = [
       "Wise", "Nubank", "Kast", "Natura BR", "E-book Bitcoin",
