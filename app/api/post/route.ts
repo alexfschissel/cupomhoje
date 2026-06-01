@@ -275,12 +275,36 @@ export async function GET(req: NextRequest) {
     const usedFromStore: Record<string, number> = {};
     const seenUrls = new Set<string>();
 
-    // Lista todas as lojas embaralhada
-    const storeKeys = Object.keys(byStore);
-    for (let i = storeKeys.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [storeKeys[i], storeKeys[j]] = [storeKeys[j], storeKeys[i]];
+    // Ordena: PRIORITY primeiro (embaralhadas), depois NORMAL, depois LOW
+    // Garante que lojas com muitos produtos (AliExpress, Kabum, LG, etc) sempre apareçam
+    const allKeys = Object.keys(byStore);
+    const priorityKeys: string[] = [];
+    const normalKeys: string[] = [];
+    const lowKeys: string[] = [];
+
+    for (const k of allKeys) {
+      if (lowPriorityStores.some(l => k.includes(l))) {
+        lowKeys.push(k);
+      } else if (priorityStores.some(p => k.includes(p))) {
+        priorityKeys.push(k);
+      } else {
+        normalKeys.push(k);
+      }
     }
+
+    // Embaralha cada bucket separadamente (Fisher-Yates)
+    function shuffle<T>(arr: T[]) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+    shuffle(priorityKeys);
+    shuffle(normalKeys);
+    shuffle(lowKeys);
+
+    // Ordem final: prioritárias PRIMEIRO, depois normais, depois low
+    const storeKeys = [...priorityKeys, ...normalKeys, ...lowKeys];
 
     // Round-robin: dá 1 produto de cada loja por vez, máximo MAX_PER_X por loja
     let stillHas = true;
