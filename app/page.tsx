@@ -30,6 +30,9 @@ export const metadata: Metadata = {
     description: "Cupons e descontos de Amazon, AliExpress, Shein, Shopee e mais. A cada 15 minutos no Telegram.",
   },
   robots: { index: true, follow: true },
+  verification: {
+    google: "YOlE_Yi_fsPIQdf5bHjjAzsApPM-I5n6Cr9qKOX2fQc",
+  },
 };
 
 const CANAL      = "https://t.me/cupomhojeoficial";
