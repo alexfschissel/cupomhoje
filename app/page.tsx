@@ -143,10 +143,81 @@ function PhoneMockup() {
   );
 }
 
+// ── JSON-LD Schema.org (SEO Google) ──────────────────────────────────────────
+const SCHEMA_ORG = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://cupomhoje.vercel.app/#org",
+      "name": "CupomHoje",
+      "url": "https://cupomhoje.vercel.app",
+      "logo": "https://cupomhoje.vercel.app/logo.png",
+      "description": "Canal de cupons e descontos com ofertas a cada 15 minutos no Telegram",
+      "sameAs": [
+        "https://t.me/cupomhojeoficial",
+        "https://t.me/cupomhojecomunidade",
+      ],
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://cupomhoje.vercel.app/#website",
+      "url": "https://cupomhoje.vercel.app",
+      "name": "CupomHoje",
+      "description": "Cupons e descontos de Amazon, AliExpress, Shein, Shopee, Mercado Livre, LG, Stanley, Lacoste, Natura, Kabum no Telegram",
+      "publisher": { "@id": "https://cupomhoje.vercel.app/#org" },
+      "inLanguage": "pt-BR",
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Como funciona o CupomHoje?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Postamos uma nova oferta com cupom e desconto a cada 15 minutos no Telegram. Você só precisa entrar no canal grátis. Sem cadastro, sem spam.",
+          },
+        },
+        {
+          "@type": "Question",
+          "name": "Quais lojas tem cupons no CupomHoje?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Amazon, AliExpress, Shein, Shopee, Mercado Livre, LG, Stanley, Panasonic, Lacoste, Arno, Kabum, Natura, Evas, Lojas Renner, Dafiti, Havaianas e muito mais.",
+          },
+        },
+        {
+          "@type": "Question",
+          "name": "É gratuito?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sim, 100% grátis. Não cobramos nada. Ganhamos comissão das lojas parceiras quando você compra usando nossos links.",
+          },
+        },
+        {
+          "@type": "Question",
+          "name": "Como faço para receber as ofertas?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Clique no botão 'Entrar no canal' e ative as notificações no Telegram. Você vai receber uma oferta nova a cada 15 minutos.",
+          },
+        },
+      ],
+    },
+  ],
+};
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function Page() {
   return (
     <div className="bg-[#080808] min-h-screen text-white">
+
+      {/* JSON-LD Schema.org */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(SCHEMA_ORG) }}
+      />
 
       {/* ── NAV ── */}
       <nav className="sticky top-0 z-50 border-b border-white/[0.05] bg-[#080808]/90 backdrop-blur-xl px-5 py-3">
