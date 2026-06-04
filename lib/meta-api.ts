@@ -235,35 +235,26 @@ export class MetaAPI {
     }
     const adSetId = adSet.id as string;
 
-    // 3. Cria POST NA PÁGINA primeiro (com Page Token)
-    // Depois usa esse post_id como object_story_id no creative
-    // Isso bypassa app dev mode porque o post é da página, não do app
-    const pageToken = await this.getPageAccessToken();
-
-    if (!pageToken) {
-      return { error: "Falha ao obter Page Access Token", campaign_id: campaignId, ad_set_id: adSetId };
-    }
-
-    // 3a. Cria post oculto (unpublished) na página
-    const postBody: Record<string, unknown> = {
-      message: messageText,
+    // 3. Cria AD CREATIVE usando object_story_spec (app Live agora)
+    const linkData: Record<string, unknown> = {
       link: targetUrl,
-      published: "false", // post não fica visível no feed da página
+      message: messageText,
+      name: headlineText,
+      description: descriptionText,
+      call_to_action: {
+        type: ctaType,
+        value: { link: targetUrl },
+      },
     };
+    if (imageHash) linkData.image_hash = imageHash;
+    if (imageUrl && !imageHash) linkData.picture = imageUrl;
 
-    if (imageUrl) postBody.picture = imageUrl;
-
-    const post = await this.post(`/${this.pageId}/feed`, postBody, pageToken);
-
-    if (!post.id) {
-      return { error: "Falha ao criar post na página", details: post, campaign_id: campaignId, ad_set_id: adSetId };
-    }
-    const postId = post.id as string;
-
-    // 3b. Cria creative usando o post_id (object_story_id)
     const creative = await this.post(`/${this.adAccountId}/adcreatives`, {
       name: `${name} - Creative`,
-      object_story_id: postId,
+      object_story_spec: {
+        page_id: this.pageId,
+        link_data: linkData,
+      },
     });
 
     if (!creative.id) {
