@@ -133,6 +133,167 @@ export class MetaAPI {
       fields: "name,status,effective_status,created_time",
     });
   }
+
+  // ─── CRIAR campanha completa (Campaign + AdSet + Ad) ────
+  async createFullCampaign(opts: {
+    name: string;
+    dailyBudgetBRL: number;  // R$ por dia (será convertido em cents)
+    targetUrl: string;        // Link de destino (Telegram)
+    imageHash?: string;       // Hash da imagem (uploadada antes)
+    imageUrl?: string;        // OU URL da imagem (alternativa)
+    messageText: string;      // Texto principal
+    headlineText?: string;    // Título curto
+    descriptionText?: string; // Descrição
+    ctaType?: string;         // SIGN_UP, LEARN_MORE, SUBSCRIBE
+    ageMin?: number;
+    ageMax?: number;
+  }) {
+    const {
+      name,
+      dailyBudgetBRL,
+      targetUrl,
+      imageHash,
+      imageUrl,
+      messageText,
+      headlineText = "Cupons grátis no Telegram 🏷",
+      descriptionText = "Amazon, AliExpress, Shopee — nova oferta a cada 15 min",
+      ctaType = "SIGN_UP",
+      ageMin = 22,
+      ageMax = 45,
+    } = opts;
+
+    // 1. Cria CAMPAIGN
+    const campaign = await this.post(`/${this.adAccountId}/campaigns`, {
+      name,
+      objective: "OUTCOME_TRAFFIC",
+      status: "PAUSED", // começa pausada pra revisar antes
+      special_ad_categories: "[]",
+      buying_type: "AUCTION",
+    });
+
+    if (!campaign.id) {
+      return { error: "Falha ao criar campaign", details: campaign };
+    }
+    const campaignId = campaign.id as string;
+
+    // 2. Cria AD SET (com targeting Brasil + interesses cupons)
+    const targeting = {
+      age_min: ageMin,
+      age_max: ageMax,
+      geo_locations: { countries: ["BR"] },
+      flexible_spec: [
+        {
+          interests: [
+            { id: "6003002193982", name: "Amazon.com (varejista)" },
+            { id: "6019154143076", name: "AliExpress" },
+            { id: "6003190690001", name: "MercadoLivre" },
+            { id: "6003054884732", name: "Cupons (cupons e descontos)" },
+            { id: "6003263791114", name: "Compras (varejo)" },
+            { id: "6003221485467", name: "Comércio eletrônico (varejo)" },
+            { id: "6003346592981", name: "Compras na internet (varejo)" },
+            { id: "6003899365666", name: "Descontos (varejo)" },
+            { id: "6003363111021", name: "black friday (compras)" },
+            { id: "6003093445217", name: "cyber monday (compras)" },
+          ],
+        },
+      ],
+      device_platforms: ["mobile"],
+      publisher_platforms: ["facebook", "instagram"],
+      facebook_positions: ["feed", "story", "instream_video"],
+      instagram_positions: ["stream", "story", "reels"],
+    };
+
+    const adSet = await this.post(`/${this.adAccountId}/adsets`, {
+      name: `${name} - AdSet`,
+      campaign_id: campaignId,
+      daily_budget: Math.round(dailyBudgetBRL * 100), // BRL para cents
+      billing_event: "IMPRESSIONS",
+      optimization_goal: "LANDING_PAGE_VIEWS",
+      bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+      targeting,
+      status: "ACTIVE",
+      start_time: new Date().toISOString(),
+    });
+
+    if (!adSet.id) {
+      return { error: "Falha ao criar adset", details: adSet, campaign_id: campaignId };
+    }
+    const adSetId = adSet.id as string;
+
+    // 3. Cria AD CREATIVE
+    const linkData: Record<string, unknown> = {
+      link: targetUrl,
+      message: messageText,
+      name: headlineText,
+      description: descriptionText,
+      call_to_action: {
+        type: ctaType,
+        value: { link: targetUrl },
+      },
+    };
+    if (imageHash) linkData.image_hash = imageHash;
+    if (imageUrl && !imageHash) linkData.picture = imageUrl;
+
+    const creative = await this.post(`/${this.adAccountId}/adcreatives`, {
+      name: `${name} - Creative`,
+      object_story_spec: {
+        page_id: this.pageId,
+        link_data: linkData,
+      },
+      degrees_of_freedom_spec: {
+        creative_features_spec: {
+          standard_enhancements: { enroll_status: "OPT_OUT" },
+        },
+      },
+    });
+
+    if (!creative.id) {
+      return { error: "Falha ao criar creative", details: creative, campaign_id: campaignId, ad_set_id: adSetId };
+    }
+    const creativeId = creative.id as string;
+
+    // 4. Cria AD
+    const ad = await this.post(`/${this.adAccountId}/ads`, {
+      name: `${name} - Ad`,
+      adset_id: adSetId,
+      creative: { creative_id: creativeId },
+      status: "ACTIVE",
+    });
+
+    return {
+      ok: true,
+      campaign_id: campaignId,
+      ad_set_id: adSetId,
+      creative_id: creativeId,
+      ad_id: ad.id ?? null,
+      campaign_status: "PAUSED",
+      message: "Campanha criada como PAUSED. Ative pelo dashboard quando quiser começar.",
+    };
+  }
+
+  // ─── Upload de imagem pra Meta (retorna image_hash) ───
+  async uploadImageFromUrl(imageUrl: string): Promise<string | null> {
+    try {
+      // 1. Baixa a imagem
+      const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(20000) });
+      if (!imgRes.ok) return null;
+      const buffer = await imgRes.arrayBuffer();
+      const base64 = Buffer.from(buffer).toString("base64");
+
+      // 2. Sobe no Meta
+      const result = await this.post(`/${this.adAccountId}/adimages`, {
+        bytes: base64,
+      });
+
+      // result.images.{filename}.hash
+      const images = (result.images ?? {}) as Record<string, { hash?: string }>;
+      const firstKey = Object.keys(images)[0];
+      return firstKey ? images[firstKey].hash ?? null : null;
+    } catch (e) {
+      console.error("[uploadImage]", String(e));
+      return null;
+    }
+  }
 }
 
 // ─── Helper: Long-lived token (60 dias) ──────────────
