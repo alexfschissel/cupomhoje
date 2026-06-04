@@ -7,214 +7,187 @@
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
-export const dynamic = "force-static";
 
 export async function GET() {
   return new ImageResponse(
     (
       <div
         style={{
-          width: "1080px",
-          height: "1350px",
-          background: "linear-gradient(135deg, #FF5A1F 0%, #E04A0F 100%)",
+          width: "100%",
+          height: "100%",
+          background: "#FF5A1F",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           padding: "60px",
-          fontFamily: "system-ui, -apple-system, sans-serif",
           color: "white",
-          position: "relative",
+          fontFamily: "sans-serif",
         }}
       >
-        {/* Borda tracejada */}
-        <div
-          style={{
-            position: "absolute",
-            top: "30px",
-            left: "30px",
-            right: "30px",
-            bottom: "30px",
-            border: "4px dashed rgba(255,255,255,0.7)",
-            borderRadius: "20px",
-          }}
-        />
-
-        {/* HEADER: TAG + CUPOM HOJE OFICIAL */}
+        {/* Header tag */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "30px",
-            marginBottom: "30px",
-            marginTop: "30px",
+            marginBottom: "40px",
           }}
         >
-          {/* Tag de desconto */}
           <div
             style={{
-              width: "180px",
-              height: "180px",
+              width: "150px",
+              height: "150px",
               background: "white",
-              borderRadius: "20px 20px 20px 0",
+              color: "#FF5A1F",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "#FF5A1F",
-              fontSize: "120px",
-              fontWeight: "900",
-              position: "relative",
-              transform: "rotate(-5deg)",
+              fontSize: "100px",
+              fontWeight: 900,
+              borderRadius: "20px",
+              marginRight: "30px",
             }}
           >
             %
-            <div
-              style={{
-                position: "absolute",
-                left: "20px",
-                top: "20px",
-                width: "30px",
-                height: "30px",
-                background: "#FF5A1F",
-                borderRadius: "50%",
-              }}
-            />
           </div>
-
-          {/* CUPOM HOJE OFICIAL */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "5px",
             }}
           >
-            <div style={{ fontSize: "100px", fontWeight: "900", lineHeight: 1 }}>
-              CUPOM
-            </div>
-            <div style={{ fontSize: "60px", fontWeight: "400", letterSpacing: "12px", lineHeight: 1 }}>
-              H O J E
-            </div>
-            <div style={{ fontSize: "80px", fontWeight: "900", lineHeight: 1 }}>
-              OFICIAL
-            </div>
+            <div style={{ fontSize: "90px", fontWeight: 900, lineHeight: 1 }}>CUPOM</div>
+            <div style={{ fontSize: "50px", fontWeight: 400, letterSpacing: "15px", lineHeight: 1 }}>HOJE</div>
+            <div style={{ fontSize: "70px", fontWeight: 900, lineHeight: 1 }}>OFICIAL</div>
           </div>
-        </div>
-
-        {/* Linha separadora com tesoura */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            width: "80%",
-            gap: "20px",
-            margin: "30px 0",
-          }}
-        >
-          <div style={{ flex: 1, height: "0", borderTop: "3px dashed rgba(255,255,255,0.6)" }} />
-          <div style={{ fontSize: "60px" }}>✂</div>
-          <div style={{ flex: 1, height: "0", borderTop: "3px dashed rgba(255,255,255,0.6)" }} />
         </div>
 
         {/* Subtítulo */}
         <div
           style={{
-            fontSize: "56px",
-            fontWeight: "800",
+            fontSize: "48px",
+            fontWeight: 800,
             textAlign: "center",
-            lineHeight: 1.2,
             marginBottom: "50px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
           }}
         >
-          Cupons e Descontos
-          <br />
-          GRÁTIS no Telegram
+          <div>Cupons e Descontos</div>
+          <div>GRÁTIS no Telegram</div>
         </div>
 
-        {/* Cards das lojas */}
+        {/* Grid de lojas */}
         <div
           style={{
             display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            gap: "30px",
+            flexDirection: "column",
+            gap: "20px",
             marginBottom: "50px",
           }}
         >
-          {[
-            { name: "amazon", color: "#FFFFFF", text: "amazon", discount: "-60% OFF" },
-            { name: "AliExpress", color: "#FFFFFF", text: "AliExpress", discount: "-80% OFF" },
-            { name: "Shopee", color: "#FFFFFF", text: "Shopee", discount: "-50% OFF" },
-            { name: "LG", color: "#FFFFFF", text: "LG", discount: "-37% OFF" },
-          ].map((store) => (
+          <div style={{ display: "flex", gap: "20px" }}>
             <div
-              key={store.name}
               style={{
-                width: "380px",
-                height: "180px",
-                background: "rgba(255,255,255,0.1)",
-                border: "3px dashed rgba(255,255,255,0.5)",
-                borderRadius: "15px",
+                width: "350px",
+                height: "150px",
+                background: "rgba(255,255,255,0.15)",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: "10px",
+                borderRadius: "20px",
               }}
             >
-              <div style={{ fontSize: "50px", fontWeight: "900", color: store.color }}>
-                {store.text}
-              </div>
-              <div style={{ fontSize: "44px", fontWeight: "800" }}>
-                {store.discount}
-              </div>
+              <div style={{ fontSize: "44px", fontWeight: 900 }}>amazon</div>
+              <div style={{ fontSize: "40px", fontWeight: 800 }}>-60% OFF</div>
             </div>
-          ))}
+            <div
+              style={{
+                width: "350px",
+                height: "150px",
+                background: "rgba(255,255,255,0.15)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "20px",
+              }}
+            >
+              <div style={{ fontSize: "44px", fontWeight: 900 }}>AliExpress</div>
+              <div style={{ fontSize: "40px", fontWeight: 800 }}>-80% OFF</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "20px" }}>
+            <div
+              style={{
+                width: "350px",
+                height: "150px",
+                background: "rgba(255,255,255,0.15)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "20px",
+              }}
+            >
+              <div style={{ fontSize: "44px", fontWeight: 900 }}>Shopee</div>
+              <div style={{ fontSize: "40px", fontWeight: 800 }}>-50% OFF</div>
+            </div>
+            <div
+              style={{
+                width: "350px",
+                height: "150px",
+                background: "rgba(255,255,255,0.15)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "20px",
+              }}
+            >
+              <div style={{ fontSize: "44px", fontWeight: 900 }}>LG</div>
+              <div style={{ fontSize: "40px", fontWeight: 800 }}>-37% OFF</div>
+            </div>
+          </div>
         </div>
 
-        {/* Info rodapé */}
+        {/* Info */}
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "20px",
-            marginBottom: "20px",
             fontSize: "36px",
+            fontWeight: 700,
+            marginBottom: "20px",
+            display: "flex",
           }}
         >
-          <span style={{ fontSize: "44px" }}>⏰</span>
-          <span>Nova oferta a cada 15min</span>
+          Nova oferta a cada 15min
         </div>
-
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "20px",
-            marginBottom: "40px",
             fontSize: "44px",
-            fontWeight: "800",
+            fontWeight: 900,
+            marginBottom: "50px",
+            display: "flex",
           }}
         >
-          <span>🎁</span>
-          <span>100% GRÁTIS</span>
+          100% GRATIS
         </div>
 
         {/* CTA */}
         <div
           style={{
             background: "#229ED9",
+            color: "white",
             padding: "30px 80px",
+            fontSize: "48px",
+            fontWeight: 900,
             borderRadius: "100px",
             display: "flex",
-            alignItems: "center",
-            gap: "20px",
-            fontSize: "52px",
-            fontWeight: "900",
           }}
         >
-          <span style={{ fontSize: "60px" }}>✈</span>
-          <span>ENTRE NO CANAL</span>
+          ENTRE NO CANAL
         </div>
       </div>
     ),
