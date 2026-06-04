@@ -38,7 +38,7 @@ function db() {
 
 const PUBLISHER_ID = 2909655;
 
-// Lojas VTEX confirmadas funcionando
+// Lojas VTEX confirmadas funcionando (6 lojas)
 const VTEX_STORES = [
   {
     mid: 78382,
@@ -62,6 +62,30 @@ const VTEX_STORES = [
     name: "Café L'or BR",
     logo: "https://ui.awin.com/images/upload/merchant/profile/19672.png",
     host: "www.cafelor.com.br",
+    sortOrder: "OrderByTopSaleDESC",
+  },
+  {
+    mid: 18878,
+    slug: "awin-18878",
+    name: "Acer BR",
+    logo: "https://ui.awin.com/images/upload/merchant/profile/18878.png",
+    host: "br-store.acer.com",
+    sortOrder: "OrderByTopSaleDESC",
+  },
+  {
+    mid: 17870,
+    slug: "awin-17870",
+    name: "Cobasi BR",
+    logo: "https://ui.awin.com/images/upload/merchant/profile/17870.png",
+    host: "www.cobasi.com.br",
+    sortOrder: "OrderByTopSaleDESC",
+  },
+  {
+    mid: 51271,
+    slug: "awin-51271",
+    name: "Mizuno BR",
+    logo: "https://ui.awin.com/images/upload/merchant/profile/51271.png",
+    host: "www.mizuno.com.br",
     sortOrder: "OrderByTopSaleDESC",
   },
 ];
