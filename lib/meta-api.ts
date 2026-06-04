@@ -56,10 +56,10 @@ export class MetaAPI {
     return await res.json();
   }
 
-  async post(path: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async post(path: string, body: Record<string, unknown>, customToken?: string): Promise<Record<string, unknown>> {
     const url = `${BASE_URL}${path}`;
     const formData = new URLSearchParams();
-    formData.set("access_token", this.token);
+    formData.set("access_token", customToken ?? this.token);
     for (const [k, v] of Object.entries(body)) {
       formData.set(k, typeof v === "string" ? v : JSON.stringify(v));
     }
@@ -70,6 +70,19 @@ export class MetaAPI {
       signal: AbortSignal.timeout(30000),
     });
     return await res.json();
+  }
+
+  // ─── Pega Page Access Token (bypass app dev mode) ─────
+  async getPageAccessToken(): Promise<string | null> {
+    try {
+      const result = await this.get("/me/accounts", { fields: "id,access_token" });
+      const pages = (result.data ?? []) as Array<{ id: string; access_token: string }>;
+      const page = pages.find(p => p.id === this.pageId);
+      return page?.access_token ?? null;
+    } catch (e) {
+      console.error("[getPageAccessToken]", String(e));
+      return null;
+    }
   }
 
   // ─── Account info ────────────────────────────────────
@@ -222,7 +235,9 @@ export class MetaAPI {
     }
     const adSetId = adSet.id as string;
 
-    // 3. Cria AD CREATIVE
+    // 3. Cria AD CREATIVE — USA PAGE ACCESS TOKEN pra bypass app dev mode
+    const pageToken = await this.getPageAccessToken();
+
     const linkData: Record<string, unknown> = {
       link: targetUrl,
       message: messageText,
@@ -247,7 +262,7 @@ export class MetaAPI {
           standard_enhancements: { enroll_status: "OPT_OUT" },
         },
       },
-    });
+    }, pageToken ?? undefined); // <-- usa Page Token se disponível
 
     if (!creative.id) {
       return { error: "Falha ao criar creative", details: creative, campaign_id: campaignId, ad_set_id: adSetId };
