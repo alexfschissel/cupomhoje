@@ -202,6 +202,7 @@ export class MetaAPI {
       publisher_platforms: ["facebook", "instagram"],
       facebook_positions: ["feed", "story", "instream_video"],
       instagram_positions: ["stream", "story", "reels"],
+      targeting_automation: { advantage_audience: 0 }, // 0=desabilitado, 1=habilitado
     };
 
     const adSet = await this.post(`/${this.adAccountId}/adsets`, {
