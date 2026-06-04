@@ -235,34 +235,36 @@ export class MetaAPI {
     }
     const adSetId = adSet.id as string;
 
-    // 3. Cria AD CREATIVE — USA PAGE ACCESS TOKEN pra bypass app dev mode
+    // 3. Cria POST NA PÁGINA primeiro (com Page Token)
+    // Depois usa esse post_id como object_story_id no creative
+    // Isso bypassa app dev mode porque o post é da página, não do app
     const pageToken = await this.getPageAccessToken();
 
-    const linkData: Record<string, unknown> = {
-      link: targetUrl,
-      message: messageText,
-      name: headlineText,
-      description: descriptionText,
-      call_to_action: {
-        type: ctaType,
-        value: { link: targetUrl },
-      },
-    };
-    if (imageHash) linkData.image_hash = imageHash;
-    if (imageUrl && !imageHash) linkData.picture = imageUrl;
+    if (!pageToken) {
+      return { error: "Falha ao obter Page Access Token", campaign_id: campaignId, ad_set_id: adSetId };
+    }
 
+    // 3a. Cria post oculto (unpublished) na página
+    const postBody: Record<string, unknown> = {
+      message: messageText,
+      link: targetUrl,
+      published: "false", // post não fica visível no feed da página
+    };
+
+    if (imageUrl) postBody.picture = imageUrl;
+
+    const post = await this.post(`/${this.pageId}/feed`, postBody, pageToken);
+
+    if (!post.id) {
+      return { error: "Falha ao criar post na página", details: post, campaign_id: campaignId, ad_set_id: adSetId };
+    }
+    const postId = post.id as string;
+
+    // 3b. Cria creative usando o post_id (object_story_id)
     const creative = await this.post(`/${this.adAccountId}/adcreatives`, {
       name: `${name} - Creative`,
-      object_story_spec: {
-        page_id: this.pageId,
-        link_data: linkData,
-      },
-      degrees_of_freedom_spec: {
-        creative_features_spec: {
-          standard_enhancements: { enroll_status: "OPT_OUT" },
-        },
-      },
-    }, pageToken ?? undefined); // <-- usa Page Token se disponível
+      object_story_id: postId,
+    });
 
     if (!creative.id) {
       return { error: "Falha ao criar creative", details: creative, campaign_id: campaignId, ad_set_id: adSetId };
