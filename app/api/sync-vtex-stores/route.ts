@@ -38,56 +38,29 @@ function db() {
 
 const PUBLISHER_ID = 2909655;
 
-// Lojas VTEX confirmadas funcionando (6 lojas)
+// Lojas VTEX confirmadas funcionando (19 lojas)
 const VTEX_STORES = [
-  {
-    mid: 78382,
-    slug: "awin-78382",
-    name: "Panasonic BR",
-    logo: "https://ui.awin.com/images/upload/merchant/profile/78382.png",
-    host: "loja.panasonic.com.br",
-    sortOrder: "OrderByTopSaleDESC",
-  },
-  {
-    mid: 108626,
-    slug: "awin-108626",
-    name: "Arno BR",
-    logo: "https://ui.awin.com/images/upload/merchant/profile/108626.png",
-    host: "www.arno.com.br",
-    sortOrder: "OrderByTopSaleDESC",
-  },
-  {
-    mid: 19672,
-    slug: "awin-19672",
-    name: "Café L'or BR",
-    logo: "https://ui.awin.com/images/upload/merchant/profile/19672.png",
-    host: "www.cafelor.com.br",
-    sortOrder: "OrderByTopSaleDESC",
-  },
-  {
-    mid: 18878,
-    slug: "awin-18878",
-    name: "Acer BR",
-    logo: "https://ui.awin.com/images/upload/merchant/profile/18878.png",
-    host: "br-store.acer.com",
-    sortOrder: "OrderByTopSaleDESC",
-  },
-  {
-    mid: 17870,
-    slug: "awin-17870",
-    name: "Cobasi BR",
-    logo: "https://ui.awin.com/images/upload/merchant/profile/17870.png",
-    host: "www.cobasi.com.br",
-    sortOrder: "OrderByTopSaleDESC",
-  },
-  {
-    mid: 51271,
-    slug: "awin-51271",
-    name: "Mizuno BR",
-    logo: "https://ui.awin.com/images/upload/merchant/profile/51271.png",
-    host: "www.mizuno.com.br",
-    sortOrder: "OrderByTopSaleDESC",
-  },
+  // Antigos
+  { mid: 78382,  slug: "awin-78382",  name: "Panasonic BR",  logo: "https://ui.awin.com/images/upload/merchant/profile/78382.png",  host: "loja.panasonic.com.br",       sortOrder: "OrderByTopSaleDESC" },
+  { mid: 108626, slug: "awin-108626", name: "Arno BR",       logo: "https://ui.awin.com/images/upload/merchant/profile/108626.png", host: "www.arno.com.br",             sortOrder: "OrderByTopSaleDESC" },
+  { mid: 19672,  slug: "awin-19672",  name: "Café L'or BR",  logo: "https://ui.awin.com/images/upload/merchant/profile/19672.png",  host: "www.cafelor.com.br",          sortOrder: "OrderByTopSaleDESC" },
+  { mid: 18878,  slug: "awin-18878",  name: "Acer BR",       logo: "https://ui.awin.com/images/upload/merchant/profile/18878.png",  host: "br-store.acer.com",           sortOrder: "OrderByTopSaleDESC" },
+  { mid: 17870,  slug: "awin-17870",  name: "Cobasi BR",     logo: "https://ui.awin.com/images/upload/merchant/profile/17870.png",  host: "www.cobasi.com.br",           sortOrder: "OrderByTopSaleDESC" },
+  { mid: 51271,  slug: "awin-51271",  name: "Mizuno BR",     logo: "https://ui.awin.com/images/upload/merchant/profile/51271.png",  host: "www.mizuno.com.br",           sortOrder: "OrderByTopSaleDESC" },
+  // Novos VTEX (13)
+  { mid: 36382,  slug: "awin-36382",  name: "Tok & Stok BR",  logo: "https://ui.awin.com/images/upload/merchant/profile/36382.png",  host: "www.tokstok.com.br",         sortOrder: "OrderByTopSaleDESC" },
+  { mid: 100553, slug: "awin-100553", name: "Calvin Klein BR",logo: "https://ui.awin.com/images/upload/merchant/profile/100553.png", host: "www.calvinklein.com.br",     sortOrder: "OrderByTopSaleDESC" },
+  { mid: 17846,  slug: "awin-17846",  name: "Diesel BR",      logo: "https://ui.awin.com/images/upload/merchant/profile/17846.png",  host: "br.diesel.com",              sortOrder: "OrderByTopSaleDESC" },
+  { mid: 30511,  slug: "awin-30511",  name: "Lego BR",        logo: "https://ui.awin.com/images/upload/merchant/profile/30511.png",  host: "www.lego.com.br",            sortOrder: "OrderByTopSaleDESC" },
+  { mid: 17858,  slug: "awin-17858",  name: "Electrolux BR",  logo: "https://ui.awin.com/images/upload/merchant/profile/17858.png",  host: "loja.electrolux.com.br",     sortOrder: "OrderByTopSaleDESC" },
+  { mid: 121392, slug: "awin-121392", name: "Aramis BR",      logo: "https://ui.awin.com/images/upload/merchant/profile/121392.png", host: "www.aramis.com.br",          sortOrder: "OrderByTopSaleDESC" },
+  { mid: 104715, slug: "awin-104715", name: "Animale BR",     logo: "https://ui.awin.com/images/upload/merchant/profile/104715.png", host: "www.animale.com.br",         sortOrder: "OrderByTopSaleDESC" },
+  { mid: 25279,  slug: "awin-25279",  name: "Brinox BR",      logo: "https://ui.awin.com/images/upload/merchant/profile/25279.png",  host: "www.brinox.com.br",          sortOrder: "OrderByTopSaleDESC" },
+  { mid: 124520, slug: "awin-124520", name: "Guess BR",       logo: "https://ui.awin.com/images/upload/merchant/profile/124520.png", host: "www.guessbrasil.com.br",     sortOrder: "OrderByTopSaleDESC" },
+  { mid: 70965,  slug: "awin-70965",  name: "Intimissimi BR", logo: "https://ui.awin.com/images/upload/merchant/profile/70965.png",  host: "www.intimissimi.com.br",     sortOrder: "OrderByTopSaleDESC" },
+  { mid: 28777,  slug: "awin-28777",  name: "Magic Feet BR",  logo: "https://ui.awin.com/images/upload/merchant/profile/28777.png",  host: "www.magicfeet.com.br",       sortOrder: "OrderByTopSaleDESC" },
+  { mid: 17698,  slug: "awin-17698",  name: "Olympikus BR",   logo: "https://ui.awin.com/images/upload/merchant/profile/17698.png",  host: "www.olympikus.com.br",       sortOrder: "OrderByTopSaleDESC" },
+  { mid: 26113,  slug: "awin-26113",  name: "Polishop BR",    logo: "https://ui.awin.com/images/upload/merchant/profile/26113.png",  host: "www.polishop.com.br",        sortOrder: "OrderByTopSaleDESC" },
 ];
 
 // Tipo do produto VTEX

@@ -247,23 +247,24 @@ export async function GET(req: NextRequest) {
     if (!data || data.length === 0)
       return NextResponse.json({ ok: false, msg: "Nenhum cupom ativo. Rode /api/sync primeiro." });
 
-    // Prioriza lojas com MUITOS produtos (AliExpress, Amazon, ML, AWIN)
-    // Reduz frequência de lojas genéricas (Wise, Nubank, Kast, etc)
-    // Lojas grandes — aparecem mais (3x por batch)
+    // ESTRATÉGIA (Junho/2026): 52 lojas AWIN + AliExpress + Kabum + Amazon + Lomadee
+    // Objetivo: distribuir os MELHORES de CADA loja durante o dia (24h × 80 msg/h = 1.920 msgs)
+    // Com 55+ lojas ativas, cada uma tem ~35 slots/dia (1920/55) — suficiente pra variedade
+
+    // PRIORITY (alto volume): posta MAX 2 por batch (era 3, reduzido pra dar espaço a mais lojas)
     const priorityStores = [
       "AliExpress", "Amazon", "Mercado Livre",
-      "KaBuM", "Kabum", // Kabum tem 214 produtos, deve ser priority
-      // Todos os AWIN merchants aprovados
-      "LG BR", "Stanley BR", "Arno BR", "Panasonic BR",
-      "Lacoste BR", "Café L'or BR", "Evas BR",
-      "Alianças Imperiais BR", "Zé Delivery BR", "VIVÃO",
-      // Lojas Lomadee de alto volume
+      "KaBuM", "Kabum",
       "Lomadee Partners",
+      // Lojas AWIN com maior volume real
+      "LG BR", "Panasonic BR", "Arno BR", "Cobasi BR",
+      "Acer BR", "Mizuno BR", "Lacoste BR",
     ];
     const lowPriorityStores = [
-      "Wise", "Nubank", "Kast", "Natura BR", "E-book Bitcoin",
-      "Ledger", "Shopclub", "ShopClub", "Booking", "Hostinger",
+      "Wise", "Nubank", "Kast", "E-book Bitcoin",
+      "Ledger", "Shopclub", "ShopClub", "Booking",
       "Binance", "Bybit", "Trezor",
+      "Allianz Travel", // seguro (baixa recorrência)
     ];
 
     const shuffled: Coupon[] = [];
@@ -284,9 +285,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ROUND-ROBIN SIMPLES — máximo 3 produtos por loja prioritária, 1 por loja pequena
-    const MAX_PER_PRIORITY = 3;
-    const MAX_PER_NORMAL   = 2;
+    // ROUND-ROBIN — MAX por loja por batch (reduzido pra dar espaço a mais das 52 lojas)
+    // Com 55+ lojas ativas e 20 msgs/batch, cada loja aparece em média em 40% dos batches
+    const MAX_PER_PRIORITY = 2; // reduzido de 3 → 2
+    const MAX_PER_NORMAL   = 1; // reduzido de 2 → 1
     const MAX_PER_LOW      = 1;
 
     const usedFromStore: Record<string, number> = {};
