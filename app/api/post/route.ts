@@ -115,7 +115,7 @@ function format(c: Coupon): string {
 }
 
 // ── Telegram API ──────────────────────────────────────────────────────────────
-// Link preview automático — Telegram puxa a imagem do link (igual ao Ledger)
+// Link preview automático — Telegram puxa a imagem do link (fallback)
 async function sendMessage(text: string, token: string, chatId: string) {
   const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
@@ -129,6 +129,29 @@ async function sendMessage(text: string, token: string, chatId: string) {
   });
   const d = await r.json() as { ok: boolean; description?: string; result?: { message_id: number } };
   if (!d.ok) throw new Error(`sendMessage: ${d.description}`);
+  return d.result?.message_id;
+}
+
+// Envia foto EMBUTIDA no post (imagem aparece grande no Telegram)
+// Caption max 1024 chars, então corta se precisar
+async function sendPhoto(imageUrl: string, caption: string, token: string, chatId: string) {
+  // Telegram sendPhoto: caption máximo 1024 caracteres
+  const truncatedCaption = caption.length > 1024
+    ? caption.substring(0, 1021) + "..."
+    : caption;
+
+  const r = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      photo: imageUrl,
+      caption: truncatedCaption,
+      parse_mode: "HTML",
+    }),
+  });
+  const d = await r.json() as { ok: boolean; description?: string; result?: { message_id: number } };
+  if (!d.ok) throw new Error(`sendPhoto: ${d.description}`);
   return d.result?.message_id;
 }
 
@@ -382,9 +405,21 @@ export async function GET(req: NextRequest) {
 
         const text   = format(coupon);
         let msgId: number | undefined;
+        let sentWithPhoto = false;
 
-        // Sempre usa sendMessage — Telegram puxa preview automático do link
-        msgId = await sendMessage(text, TOKEN, CHAT_ID);
+        // Se tem image_url válido, envia com sendPhoto (imagem embutida grande)
+        // Caso contrário, sendMessage com preview automático do link
+        if (coupon.image_url && coupon.image_url.startsWith("http")) {
+          try {
+            msgId = await sendPhoto(coupon.image_url, text, TOKEN, CHAT_ID);
+            sentWithPhoto = true;
+          } catch {
+            // Fallback pra sendMessage se sendPhoto falhar (imagem quebrada, 413, etc)
+            msgId = await sendMessage(text, TOKEN, CHAT_ID);
+          }
+        } else {
+          msgId = await sendMessage(text, TOKEN, CHAT_ID);
+        }
 
         // Já atualizou last_posted_at acima (na reserva)
         await supabase
@@ -392,7 +427,7 @@ export async function GET(req: NextRequest) {
           .update({ last_posted_at: now })
           .eq("id", coupon.id);
 
-        results.push({ id: coupon.id, store: coupon.store_name, ok: true, message_id: msgId, has_image: !!coupon.image_url });
+        results.push({ id: coupon.id, store: coupon.store_name, ok: true, message_id: msgId, has_image: !!coupon.image_url, sent_with_photo: sentWithPhoto });
       } catch (e) {
         results.push({ id: coupon.id, store: coupon.store_name, ok: false, error: String(e) });
       }
