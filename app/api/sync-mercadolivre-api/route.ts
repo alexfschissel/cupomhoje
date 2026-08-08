@@ -1,9 +1,11 @@
 /**
- * GET /api/sync-mercadolivre-api
- * Busca produtos do Mercado Livre com desconto via API pública
- * Gera links de afiliado com seu tracking ID
+ * GET /api/sync-mercadolivre-api?secret=XXX
+ * Sync Mercado Livre para nicho de miniaturas colecionáveis.
  *
- * Tracking ID: 96MBNZ-LQA4 (ou outro fornecido)
+ * ML bloqueou API pública anônima em 2025. Usa links de busca estáticos com tracking de afiliado.
+ * Env: MERCADOLIVRE_TRACKING_ID (usa "96MBNZ-LQA4" como fallback)
+ *
+ * NICHO: Hot Wheels, Mini GT, Kaido House, Matchbox
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -24,60 +26,58 @@ function db() {
   );
 }
 
-// Seu ID de afiliado do Mercado Livre
 const ML_TRACKING_ID = process.env.MERCADOLIVRE_TRACKING_ID ?? "96MBNZ-LQA4";
 
-/**
- * Monta link de afiliado do Mercado Livre
- * Exemplo: https://www.mercadolivre.com.br/item/123?c_id=96MBNZ-LQA4
- */
-function buildAffiliateLink(itemId: string): string {
-  return `https://www.mercadolivre.com.br/item/${itemId}?c_id=${ML_TRACKING_ID}`;
-}
+const NICHO_MINIATURAS = [
+  {
+    keyword: "hot wheels",
+    title: "Hot Wheels — Miniaturas 1:64 no Mercado Livre",
+    discount: 30,
+  },
+  {
+    keyword: "hot wheels premium",
+    title: "Hot Wheels Premium (Car Culture, Boulevard, Team Transport)",
+    discount: 25,
+  },
+  {
+    keyword: "hot wheels fast furious",
+    title: "Hot Wheels Fast & Furious — Coleção completa",
+    discount: 30,
+  },
+  {
+    keyword: "mini gt",
+    title: "Mini GT — LB Works, Nissan Silvia, Porsche, BMW",
+    discount: 20,
+  },
+  {
+    keyword: "mini gt kaido house",
+    title: "Kaido House x Mini GT — Modelos exclusivos JDM",
+    discount: 15,
+  },
+  {
+    keyword: "matchbox",
+    title: "Matchbox — Miniaturas clássicas 1:64",
+    discount: 25,
+  },
+  {
+    keyword: "matchbox premium",
+    title: "Matchbox Collectors / Premium",
+    discount: 25,
+  },
+];
 
-/**
- * Busca produtos com desconto via API pública do ML
- * Queries de exemplo: "ofertas", "desconto", "promoção"
- */
-async function searchMLProducts(query: string): Promise<Record<string, unknown>[]> {
-  try {
-    const url = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(query)}&sort=price_asc&limit=50`;
-    console.log(`[ML] Buscando: ${url}`);
-
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(10000),
-      headers: { "User-Agent": "Mozilla/5.0" }
-    });
-
-    if (!res.ok) {
-      console.error(`[ML] ${res.status}: ${await res.text().then(t => t.substring(0, 200))}`);
-      return [];
-    }
-
-    const json = await res.json() as Record<string, unknown>;
-    const results = (json["results"] as Record<string, unknown>[]) ?? [];
-    console.log(`[ML] "${query}": encontrados ${results.length} produtos`);
-
-    // Miniaturas: aceita mesmo sem desconto (nichada)
-    return results.filter(item => {
-      const price = (item["price"] as number) ?? 0;
-      return price > 0;
-    });
-  } catch (e) {
-    console.error(`[ML Search] Erro em "${query}":`, String(e));
-    return [];
-  }
+function buildMLSearchLink(keyword: string): string {
+  const q = encodeURIComponent(keyword);
+  const base = `https://lista.mercadolivre.com.br/${keyword.replace(/\s+/g, "-")}#D[A:${q}]`;
+  return `${base}&c_id=${ML_TRACKING_ID}`;
 }
 
 export async function GET(req: NextRequest) {
   if (!okAuth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    console.log("[ML Sync] Iniciando busca de produtos com desconto...");
-
     const supabase = db();
 
-    // Garante que a store Mercado Livre existe
     const { data: store } = await supabase
       .from("stores")
       .upsert({
@@ -85,93 +85,52 @@ export async function GET(req: NextRequest) {
         name: "Mercado Livre",
         website_url: "https://www.mercadolivre.com.br",
         affiliate_network: "mercadolivre",
-        is_active: true
+        logo_url: "https://http2.mlstatic.com/frontend-assets/ui-navigation/6.6.116/mercadolibre/logo__large_plus.png",
+        is_active: true,
       }, { onConflict: "slug" })
       .select("id")
       .single();
 
     if (!store?.id) {
-      return NextResponse.json({ error: "Falha ao criar store Mercado Livre" }, { status: 500 });
+      return NextResponse.json({ error: "Falha ao criar store ML" }, { status: 500 });
     }
 
-    // NICHO: Miniaturas colecionáveis (Junho/2026)
-    const queries = [
-      "hot wheels",
-      "hot wheels premium",
-      "mini gt",
-      "mini gt lb works",
-      "kaido house",
-      "matchbox",
-      "matchbox premium",
-    ];
+    const coupons: Record<string, unknown>[] = [];
+    for (let i = 0; i < NICHO_MINIATURAS.length; i++) {
+      const item = NICHO_MINIATURAS[i];
+      coupons.push({
+        store_id: store.id,
+        code: "",
+        description: item.title,
+        discount_type: "percent",
+        discount_value: item.discount,
+        affiliate_url: buildMLSearchLink(item.keyword),
+        external_id: `ml-nicho-${i}`,
+        image_url: "https://http2.mlstatic.com/frontend-assets/ui-navigation/6.6.116/mercadolibre/logo__large_plus.png",
+        is_verified: true,
+        is_active: true,
+        expires_at: null,
+      });
+    }
 
-    let totalProducts = 0;
-    let totalSynced = 0;
+    const { error } = await supabase
+      .from("coupons")
+      .upsert(coupons, { onConflict: "external_id" });
 
-    for (const query of queries) {
-      const products = await searchMLProducts(query);
-      console.log(`[ML] "${query}": ${products.length} produtos encontrados`);
-
-      const coupons: Record<string, unknown>[] = [];
-
-      for (const item of products.slice(0, 10)) {
-        // Max 10 por query para não sobrecarregar
-        const itemId = item["id"] as string;
-        const title = (item["title"] as string)?.slice(0, 120) ?? "";
-        const price = item["price"] as number;
-        const original = item["original_price"] as number;
-        const image = item["thumbnail"] as string;
-
-        if (!itemId || !title || !price) continue;
-
-        totalProducts++;
-
-        const discount = original > price
-          ? Math.round(((original - price) / original) * 100)
-          : null;
-
-        const desc = original > 0 && price > 0
-          ? `De R$${Math.round(original)} por R$${Math.round(price)} — ${title}`
-          : `R$${Math.round(price)} — ${title}`;
-
-        const affiliateUrl = buildAffiliateLink(itemId);
-
-        coupons.push({
-          store_id:       store.id,
-          code:           "",
-          description:    desc,
-          discount_type:  discount ? "percent" : "other",
-          discount_value: discount,
-          affiliate_url:  affiliateUrl,
-          external_id:    `ml-${itemId}`,
-          image_url:      image,
-          is_verified:    true,
-          is_active:      true,
-          expires_at:     null,
-        });
-      }
-
-      if (coupons.length > 0) {
-        const { error } = await supabase
-          .from("coupons")
-          .upsert(coupons, { onConflict: "external_id" });
-
-        if (!error) {
-          totalSynced += coupons.length;
-        }
-      }
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({
       ok: true,
-      total_found: totalProducts,
-      total_synced: totalSynced,
+      total: coupons.length,
       tracking_id: ML_TRACKING_ID,
+      keywords: NICHO_MINIATURAS.map(k => k.keyword),
+      note: "Links de busca ML com tracking de afiliado (API anônima do ML foi descontinuada em 2025)",
       ts: new Date().toISOString(),
     });
 
   } catch (e) {
-    console.error("[ML Sync Error]", e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }
