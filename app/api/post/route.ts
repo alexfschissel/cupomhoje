@@ -132,6 +132,31 @@ async function sendMessage(text: string, token: string, chatId: string) {
   return d.result?.message_id;
 }
 
+// Hosts que bloqueiam hotlink pro Telegram → usa proxy do próprio Vercel
+const PROXY_HOSTS = [
+  "ae-pic-a1.aliexpress-media.com",
+  "ae01.alicdn.com",
+  "ae02.alicdn.com",
+  "ae03.alicdn.com",
+  "ae04.alicdn.com",
+  "ae-pic.aliexpress-media.com",
+  "img.alicdn.com",
+];
+
+function needsProxy(imageUrl: string): boolean {
+  try {
+    const host = new URL(imageUrl).hostname;
+    return PROXY_HOSTS.includes(host);
+  } catch {
+    return false;
+  }
+}
+
+function proxifyImage(imageUrl: string): string {
+  if (!needsProxy(imageUrl)) return imageUrl;
+  return `https://cupomhoje.vercel.app/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+}
+
 // Envia foto EMBUTIDA no post (imagem aparece grande no Telegram)
 // Caption max 1024 chars, então corta se precisar
 async function sendPhoto(imageUrl: string, caption: string, token: string, chatId: string) {
@@ -140,12 +165,15 @@ async function sendPhoto(imageUrl: string, caption: string, token: string, chatI
     ? caption.substring(0, 1021) + "..."
     : caption;
 
+  // Se a URL for de CDN que bloqueia hotlink, passa pelo proxy do Vercel
+  const finalImageUrl = proxifyImage(imageUrl);
+
   const r = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chatId,
-      photo: imageUrl,
+      photo: finalImageUrl,
       caption: truncatedCaption,
       parse_mode: "HTML",
     }),
