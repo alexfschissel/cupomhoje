@@ -39,19 +39,29 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = db();
 
-    // 1. Busca TODOS os produtos AliExpress ativos
-    const { data: aliProducts, error: fetchError } = await supabase
-      .from("coupons")
-      .select("id, description, external_id")
-      .like("external_id", "ali-%")
-      .eq("is_active", true)
-      .limit(5000);
-
-    if (fetchError) {
-      return NextResponse.json({ error: fetchError.message }, { status: 500 });
+    // 1. Busca TODOS os produtos AliExpress ativos (limite Supabase é 1000, então paginamos)
+    const aliProducts: Array<{ id: string; description: string; external_id: string }> = [];
+    let offset = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data: page, error: pageError } = await supabase
+        .from("coupons")
+        .select("id, description, external_id")
+        .like("external_id", "ali-%")
+        .eq("is_active", true)
+        .range(offset, offset + pageSize - 1);
+      if (pageError) {
+        return NextResponse.json({ error: pageError.message }, { status: 500 });
+      }
+      if (!page || page.length === 0) break;
+      aliProducts.push(...page);
+      if (page.length < pageSize) break;
+      offset += pageSize;
     }
+    const fetchError = null;
 
-    if (!aliProducts || aliProducts.length === 0) {
+    void fetchError; // já tratado dentro do loop
+    if (aliProducts.length === 0) {
       return NextResponse.json({ ok: true, msg: "Nenhum AliExpress ativo", desativados: 0 });
     }
 
