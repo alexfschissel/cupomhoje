@@ -58,11 +58,10 @@ async function searchMLProducts(query: string): Promise<Record<string, unknown>[
     const results = (json["results"] as Record<string, unknown>[]) ?? [];
     console.log(`[ML] "${query}": encontrados ${results.length} produtos`);
 
+    // Miniaturas: aceita mesmo sem desconto (nichada)
     return results.filter(item => {
-      const original = (item["original_price"] as number) ?? 0;
       const price = (item["price"] as number) ?? 0;
-      // Só inclui produtos com desconto real (min 5%)
-      return original > 0 && price > 0 && original > price && ((original - price) / original) >= 0.05;
+      return price > 0;
     });
   } catch (e) {
     console.error(`[ML Search] Erro em "${query}":`, String(e));
@@ -95,13 +94,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Falha ao criar store Mercado Livre" }, { status: 500 });
     }
 
-    // Buscas diferentes para variedade
+    // NICHO: Miniaturas colecionáveis (Junho/2026)
     const queries = [
-      "desconto",
-      "promoção",
-      "oferta do dia",
-      "imperdível",
-      "queima de estoque"
+      "hot wheels",
+      "hot wheels premium",
+      "mini gt",
+      "mini gt lb works",
+      "kaido house",
+      "matchbox",
+      "matchbox premium",
     ];
 
     let totalProducts = 0;

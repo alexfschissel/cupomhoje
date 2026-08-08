@@ -102,8 +102,23 @@ async function syncAliExpress(supabase: ReturnType<typeof db>) {
   if (!APP_KEY || !APP_SECRET)
     return { synced: 0, skipped: 0, error: "ALIEXPRESS_APP_KEY ou ALIEXPRESS_APP_SECRET não configurados" };
 
-  // Keywords MASSIVAS — cobertura de TODAS as 22 categorias AliExpress
+  // NICHO: Miniaturas colecionáveis de carros (Junho/2026)
+  // Foco em Hot Wheels, Mini GT, Kaido House, Matchbox
   const DEFAULT_KEYWORDS = [
+    // 🏎️ Hot Wheels — várias variações
+    "hot wheels", "hot wheels premium", "hot wheels boulevard",
+    "hot wheels car culture", "hot wheels fast furious", "hot wheels team transport",
+    // 🚗 Mini GT
+    "mini gt", "mini gt lb works", "mini gt nissan", "mini gt honda",
+    "mini gt porsche", "mini gt bmw",
+    // 🏁 Kaido House
+    "kaido house", "kaido house mini gt", "kaidoi house",
+    // 📦 Matchbox
+    "matchbox car", "matchbox premium", "matchbox collectors",
+  ];
+
+  // Keywords antigas (desativadas — comentadas caso queira reativar depois)
+  const _OLD_KEYWORDS = [
     // 🎮 Gaming / Consoles / Anime (Toys & Games + Books & Media)
     "lego", "pokemon cards", "mario kart", "zelda", "nintendo switch", "game boy",
     "playstation", "sega genesis", "sonic", "pop mart", "8bitdo controller",
