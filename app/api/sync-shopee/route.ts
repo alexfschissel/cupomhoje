@@ -29,36 +29,42 @@ function db() {
 // Se você tem programa de afiliados Shopee, configure a env var
 const SHOPEE_AFFILIATE_ID = process.env.SHOPEE_AFFILIATE_ID ?? "";
 
+// Reusa imagens do ML CDN (mesmas do sync-mercadolivre)
+const IMG_HOTWHEELS = "https://http2.mlstatic.com/D_NQ_NP_2X_869275-MLB70543594895_072023-F.webp";
+const IMG_MINIGT    = "https://http2.mlstatic.com/D_NQ_NP_2X_657541-MLB79604093770_102024-F.webp";
+const IMG_KAIDO     = "https://http2.mlstatic.com/D_NQ_NP_2X_960311-MLB82093553797_012025-F.webp";
+const IMG_MATCHBOX  = "https://http2.mlstatic.com/D_NQ_NP_2X_809876-MLB79340195683_092024-F.webp";
+
 const NICHO_MINIATURAS = [
   {
     keyword: "hot wheels",
     title: "Hot Wheels — Miniaturas 1:64 na Shopee",
     discount: 30,
-    image: "https://cf.shopee.com.br/file/br-11134201-7r98o-lp2gjt5c7q9d76",
+    image: IMG_HOTWHEELS,
   },
   {
     keyword: "hot wheels premium",
     title: "Hot Wheels Premium (Car Culture, Boulevard, Team Transport)",
     discount: 25,
-    image: "https://cf.shopee.com.br/file/br-11134201-7r98o-lp2gjt5c7q9d76",
+    image: IMG_HOTWHEELS,
   },
   {
     keyword: "mini gt",
     title: "Mini GT — Modelos raros 1:64 (LB Works, Porsche, Nissan)",
     discount: 20,
-    image: "https://cf.shopee.com.br/file/br-11134207-7r98o-lyffxvtbhc0qc3",
+    image: IMG_MINIGT,
   },
   {
     keyword: "kaido house",
     title: "Kaido House — Miniaturas exclusivas JDM",
     discount: 15,
-    image: "https://cf.shopee.com.br/file/br-11134207-7r98o-lyffxvtbhc0qc3",
+    image: IMG_KAIDO,
   },
   {
     keyword: "matchbox premium",
     title: "Matchbox Collectors / Premium 1:64",
     discount: 25,
-    image: "https://cf.shopee.com.br/file/br-11134201-7r98o-lp2gjt5c7q9d76",
+    image: IMG_MATCHBOX,
   },
 ];
 

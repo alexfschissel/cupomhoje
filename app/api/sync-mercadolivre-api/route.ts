@@ -28,41 +28,54 @@ function db() {
 
 const ML_TRACKING_ID = process.env.MERCADOLIVRE_TRACKING_ID ?? "96MBNZ-LQA4";
 
+// Imagens específicas por marca (hospedadas em CDN pública Mercado Livre)
+const IMG_HOTWHEELS = "https://http2.mlstatic.com/D_NQ_NP_2X_869275-MLB70543594895_072023-F.webp";
+const IMG_MINIGT    = "https://http2.mlstatic.com/D_NQ_NP_2X_657541-MLB79604093770_102024-F.webp";
+const IMG_KAIDO     = "https://http2.mlstatic.com/D_NQ_NP_2X_960311-MLB82093553797_012025-F.webp";
+const IMG_MATCHBOX  = "https://http2.mlstatic.com/D_NQ_NP_2X_809876-MLB79340195683_092024-F.webp";
+
 const NICHO_MINIATURAS = [
   {
     keyword: "hot wheels",
     title: "Hot Wheels — Miniaturas 1:64 no Mercado Livre",
     discount: 30,
+    image: IMG_HOTWHEELS,
   },
   {
     keyword: "hot wheels premium",
     title: "Hot Wheels Premium (Car Culture, Boulevard, Team Transport)",
     discount: 25,
+    image: IMG_HOTWHEELS,
   },
   {
     keyword: "hot wheels fast furious",
     title: "Hot Wheels Fast & Furious — Coleção completa",
     discount: 30,
+    image: IMG_HOTWHEELS,
   },
   {
     keyword: "mini gt",
     title: "Mini GT — LB Works, Nissan Silvia, Porsche, BMW",
     discount: 20,
+    image: IMG_MINIGT,
   },
   {
     keyword: "mini gt kaido house",
     title: "Kaido House x Mini GT — Modelos exclusivos JDM",
     discount: 15,
+    image: IMG_KAIDO,
   },
   {
     keyword: "matchbox",
     title: "Matchbox — Miniaturas clássicas 1:64",
     discount: 25,
+    image: IMG_MATCHBOX,
   },
   {
     keyword: "matchbox premium",
     title: "Matchbox Collectors / Premium",
     discount: 25,
+    image: IMG_MATCHBOX,
   },
 ];
 
@@ -106,7 +119,7 @@ export async function GET(req: NextRequest) {
         discount_value: item.discount,
         affiliate_url: buildMLSearchLink(item.keyword),
         external_id: `ml-nicho-${i}`,
-        image_url: "https://http2.mlstatic.com/frontend-assets/ui-navigation/6.6.116/mercadolibre/logo__large_plus.png",
+        image_url: item.image,
         is_verified: true,
         is_active: true,
         expires_at: null,
